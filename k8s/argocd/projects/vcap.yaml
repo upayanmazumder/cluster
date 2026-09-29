@@ -11,8 +11,6 @@ spec:
     ArgoCD Application per service per environment.
   sourceRepos:
     - https://github.com/upayanmazumder/cluster
-    # kept for the P6 rollback window (R-1); removed at P8-02
-    - https://github.com/upayanmazumder/vps
     - https://github.com/vitscopesoftwareteam/VCAP-STAGING-BACKEND
     - https://github.com/vitscopesoftwareteam/VCAP-STAGING-FRONTEND
   # S11: destinations enumerated instead of `namespace: "*"`. Adding an app

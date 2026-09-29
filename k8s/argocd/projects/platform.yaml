@@ -9,8 +9,6 @@ spec:
   description: Cluster-wide platform infrastructure
   sourceRepos:
     - https://github.com/upayanmazumder/cluster
-    # kept for the P6 rollback window (R-1); removed at P8-02
-    - https://github.com/upayanmazumder/vps
     - https://argoproj.github.io/argo-helm
     - https://kedacore.github.io/charts
   # S11: destinations enumerated instead of `namespace: "*"`. An app that
