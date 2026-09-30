@@ -1,3 +1,3 @@
 kustomize:
   images:
-  - ghcr.io/cheetos-gif/prism-streaming-rag=ghcr.io/cheetos-gif/prism-streaming-rag:latest@sha256:59342c47be3c55278dcea0528bfff567ce7286f3e304074d5c78dd10d74cdf31
+  - ghcr.io/cheetos-gif/prism-streaming-rag=ghcr.io/cheetos-gif/prism-streaming-rag:latest@sha256:33f430a05294db3958cd63ff1ce71abb150e6655ba038ff2190fd241489e4d46
