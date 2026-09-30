@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: meghmitra
+  name: adhigrahan-radar
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-options: Delete=false,Prune=false
@@ -13,10 +13,14 @@ metadata:
     # every workload object under `deploy/k8s/`. This Application is the tenant's registration in
     # the cluster, not a copy of its config.
     #
+    # Renamed 2026-09-30 from the `meghmitra` Application (object name, project, destination
+    # namespace all moved to `adhigrahan-radar`, matching the tenant's own hostnames/object-name
+    # rename in the same push). The old Application object is left live, `Delete=false,Prune=false`,
+    # for a deliberate follow-up retirement rather than deleted here.
+    #
     # `write-back-method: argocd` (no `git:secret`): the image-updater may not push to a repository
     # this owner does not administer. With `argocd` it patches this Application's own
     # `kustomize.images` instead, which needs no credential and no write to the tenant's `main`.
-    # That is the same method the legacy application used for the same reason.
     argocd-image-updater.argoproj.io/write-back-method: argocd
     argocd-image-updater.argoproj.io/image-list: "api=ghcr.io/ujjwal160107/adhigrahan-radar/api:edge,web=ghcr.io/ujjwal160107/adhigrahan-radar/web:edge"
     argocd-image-updater.argoproj.io/api.update-strategy: digest
@@ -26,23 +30,23 @@ metadata:
     argocd-image-updater.argoproj.io/api.kustomize.image-name: ghcr.io/ujjwal160107/adhigrahan-radar/api
     argocd-image-updater.argoproj.io/web.kustomize.image-name: ghcr.io/ujjwal160107/adhigrahan-radar/web
 spec:
-  project: meghmitra
+  project: adhigrahan-radar
   source:
     repoURL: https://github.com/Ujjwal160107/adhigrahan-radar
     targetRevision: main
     path: deploy/k8s
   destination:
     server: https://kubernetes.default.svc
-    namespace: meghmitra
+    namespace: adhigrahan-radar
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
-      # No CreateNamespace, and it could not work even if it were set: the `meghmitra` AppProject
-      # permits no cluster-scoped kinds, and ArgoCD treats the destination Namespace as a resource
-      # when this option is on (measured on v2.14.11 — see the P2-05 changelog entry). The Namespace
-      # is declared by the `storage` Application instead
+      # No CreateNamespace, and it could not work even if it were set: the `adhigrahan-radar`
+      # AppProject permits no cluster-scoped kinds, and ArgoCD treats the destination Namespace as a
+      # resource when this option is on (measured on v2.14.11 — see the P2-05 changelog entry). The
+      # Namespace is declared by the `storage` Application instead
       # (`k8s/platform/storage/namespaces-tenants.yaml`), which also carries its Pod Security labels.
       - ServerSideApply=true
       - ApplyOutOfSyncOnly=true

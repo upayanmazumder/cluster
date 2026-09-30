@@ -42,14 +42,18 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-options: Delete=false,Prune=false
 ---
-# P3-M4 (OD-4): the same boundary for the replacement application on the `meghmitra` hostnames.
+# P3-M4 (OD-4): the same boundary for the replacement application, now on the `radar.upayan.dev`
+# hostnames (renamed 2026-09-30 from `meghmitra`/`meghmitra.upayan.dev`; the previous `meghmitra`
+# Namespace object is left live and unmanaged here on purpose - Delete=false,Prune=false protects
+# it from a prune either way, and its retirement is a separate, deliberate follow-up).
 #
-# It arrived here late on purpose. Until P3-M4 the namespace was created by the *legacy* Application
-# (`CreateNamespace=true`) and tracked by it, so declaring it here as well would have meant two
-# Applications rendering one Namespace — and the legacy app's `prune: true` would have been free to
-# delete it the moment the new spec stopped listing it. The switch and this declaration ship in one
-# commit, and the live object was additionally annotated `Delete=false,Prune=false` by hand before
-# the switch, so no ordering of the two syncs could remove it.
+# It arrived here late on purpose, originally. Until P3-M4 the namespace was created by the
+# *legacy* Application (`CreateNamespace=true`) and tracked by it, so declaring it here as well
+# would have meant two Applications rendering one Namespace — and the legacy app's `prune: true`
+# would have been free to delete it the moment the new spec stopped listing it. The switch and this
+# declaration shipped in one commit, and the live object was additionally annotated
+# `Delete=false,Prune=false` by hand before the switch, so no ordering of the two syncs could
+# remove it.
 #
 # `enforce: baseline` is already what the live namespace carries (the legacy app set it via
 # `managedNamespaceMetadata`), so this changes no running pod: it moves the label to a manifest that
@@ -58,7 +62,7 @@ metadata:
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: meghmitra
+  name: adhigrahan-radar
   labels:
     pod-security.kubernetes.io/enforce: baseline
     pod-security.kubernetes.io/warn: restricted

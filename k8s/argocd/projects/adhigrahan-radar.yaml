@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject
 metadata:
-  name: meghmitra
+  name: adhigrahan-radar
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-options: Delete=false,Prune=false
@@ -11,27 +11,28 @@ metadata:
     # confusing failure to debug at the moment it matters most.
 spec:
   description: >-
-    Adhigrahan Radar (the replacement application on the meghmitra hostnames). Tenant-owned
-    manifests in Ujjwal160107/adhigrahan-radar; the Namespace, the static PV, this project and the
-    Application are cluster-owned because a third-party repository must not create cluster-scoped
-    objects (ESC-001's lesson, 2026-09-29).
+    Adhigrahan Radar (the replacement application, on its own `radar.upayan.dev` hostnames since
+    2026-09-30 - previously `meghmitra.upayan.dev`, shared with the legacy application it
+    replaces). Tenant-owned manifests in Ujjwal160107/adhigrahan-radar; the Namespace, the static
+    PV, this project and the Application are cluster-owned because a third-party repository must
+    not create cluster-scoped objects (ESC-001's lesson, 2026-09-29).
   sourceRepos:
     - https://github.com/Ujjwal160107/adhigrahan-radar
-  # Exactly one destination, and it is the same namespace the old application used. The hostnames
-  # `meghmitra.upayan.dev` / `api-meghmitra.upayan.dev` and the namespace are shared deliberately:
-  # this deployment replaces that one rather than standing beside it (OD-4).
+  # Exactly one destination. Renamed 2026-09-30 (project meghmitra -> adhigrahan-radar, namespace
+  # meghmitra -> adhigrahan-radar) alongside the tenant's own object-name rename in the same
+  # deploy/k8s/ commit, so the two land together rather than one waiting on the other.
   destinations:
     - server: https://kubernetes.default.svc
-      namespace: meghmitra
+      namespace: adhigrahan-radar
   # Nothing the tenant renders is cluster-scoped, and the tenant must not be able to make it so.
   # `clusterResourceWhitelist: []` is the same control that closed the VCAP escalation: a push to an
   # unprotected tenant `main` cannot create a ClusterRole, a ClusterRoleBinding or a Namespace.
   clusterResourceWhitelist: []
   # `kustomize build deploy/k8s` on the tenant's `main` renders 9 objects in exactly these five
-  # kinds (verified 2026-09-29 with `kustomize build` + `kubeconform -strict`: 9 valid, 0 invalid).
-  # Notably absent: `Secret`. It is not needed — both GHCR packages are public, so there is no pull
-  # Secret — and leaving it out means the tenant cannot put a credential in this namespace through
-  # GitOps at all.
+  # kinds (verified 2026-09-29 with `kustomize build` + `kubeconform -strict`: 9 valid, 0 invalid;
+  # object names changed 2026-09-30, kind/count unchanged). Notably absent: `Secret`. It is not
+  # needed — both GHCR packages are public, so there is no pull Secret — and leaving it out means
+  # the tenant cannot put a credential in this namespace through GitOps at all.
   namespaceResourceWhitelist:
     - group: apps
       kind: Deployment
