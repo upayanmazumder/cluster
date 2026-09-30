@@ -1,0 +1,51 @@
+# Old-hostname redirects for retired tenant cutovers. First entry: the 2026-09-30
+# meghmitra -> adhigrahan-radar rename (see changelog/2026-09.md). `meghmitra.upayan.dev` and
+# `api-meghmitra.upayan.dev` no longer have a tenant Ingress (the old Application/workload objects
+# were retired in that same change) - Traefik answered them with a bare 404 until this file, which
+# sends anyone who still has the old URL bookmarked or hardcoded on to the new one instead.
+#
+# Declared here rather than in the tenant repository for the same reason every other cluster-owned
+# edge object is: this outlives any one tenant Application, and belongs with the other Traefik
+# platform config, not with whichever Application happens to currently own the hostname.
+#
+# One Middleware handles both hosts: `${1}` captures the optional `api-` prefix, so
+# `meghmitra.upayan.dev/x` -> `radar.upayan.dev/x` and `api-meghmitra.upayan.dev/x` ->
+# `api-radar.upayan.dev/x` in a single rule. `permanent: true` (301) - the old hostnames are not
+# coming back, per the rename this redirect exists to serve.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: meghmitra-to-radar-redirect
+  namespace: kube-system
+spec:
+  redirectRegex:
+    regex: "^https://(api-)?meghmitra\\.upayan\\.dev/(.*)"
+    replacement: "https://${1}radar.upayan.dev/${2}"
+    permanent: true
+---
+# The route needs a backend service even though the middleware always answers first (Traefik's k8s
+# provider requires a valid one to build the router at all) - pointed at the new site's own web
+# Service as the safe, meaningful fallback if the middleware were ever removed.
+#
+# `tls: {}` (empty): enables TLS termination on this router using the entrypoint's default
+# certificate - the same Cloudflare Origin CA wildcard every tenant Ingress falls back to (no
+# `tls:` block on those either; see docs/certificates.md) - without pinning a `secretName` that would
+# need updating if that default ever changes.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: meghmitra-to-radar-redirect
+  namespace: kube-system
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`meghmitra.upayan.dev`) || Host(`api-meghmitra.upayan.dev`)
+      kind: Rule
+      middlewares:
+        - name: meghmitra-to-radar-redirect
+      services:
+        - name: adhigrahan-radar-web
+          namespace: adhigrahan-radar
+          port: 3000
+  tls: {}
