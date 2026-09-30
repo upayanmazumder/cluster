@@ -38,7 +38,7 @@ spec:
             - name: MODEL_PROVIDER
               value: groq
             - name: GROQ_MODEL
-              value: llama-3.3-70b-versatile
+              value: qwen/qwen3.8-27b
             - name: HOST
               value: 0.0.0.0
             - name: PORT
