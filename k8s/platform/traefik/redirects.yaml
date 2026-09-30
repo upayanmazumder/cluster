@@ -24,8 +24,13 @@ spec:
     permanent: true
 ---
 # The route needs a backend service even though the middleware always answers first (Traefik's k8s
-# provider requires a valid one to build the router at all) - pointed at the new site's own web
-# Service as the safe, meaningful fallback if the middleware were ever removed.
+# provider requires a valid one to build the router at all). It has to be in THIS namespace
+# (kube-system): Traefik's Kubernetes CRD provider refuses a cross-namespace service reference
+# unless `providers.kubernetesCRD.allowCrossNamespace` is enabled cluster-wide, which it is not here
+# (measured: pointing this at `adhigrahan-radar-web` made Traefik silently drop the whole route -
+# "service adhigrahan-radar/adhigrahan-radar-web not in the parent resource namespace kube-system",
+# ERR in its logs, every request just falling through to Traefik's own default 404). Traefik's own
+# Service is the obvious same-namespace, always-up target.
 #
 # `tls: {}` (empty): enables TLS termination on this router using the entrypoint's default
 # certificate - the same Cloudflare Origin CA wildcard every tenant Ingress falls back to (no
@@ -45,7 +50,6 @@ spec:
       middlewares:
         - name: meghmitra-to-radar-redirect
       services:
-        - name: adhigrahan-radar-web
-          namespace: adhigrahan-radar
-          port: 3000
+        - name: traefik
+          port: 443
   tls: {}
