@@ -42,10 +42,10 @@ spec:
               value: "8000"
             # The image ships the sentence-transformers model, so no runtime download.
           # Startup loads torch and the embedding model, then builds the corpus index
-          # (controller/main.py lifespan) before uvicorn accepts connections: measured 11s
-          # locally with the model cached (the image bakes it in). Memory is ~590Mi idle,
-          # ~660Mi after a full replay, so the limit leaves headroom without letting the pod
-          # take the node down.
+          # (controller/main.py lifespan) before uvicorn accepts connections: ~11s on the
+          # workstation, and the image bakes the model in. The first readiness probe fails with
+          # "connection refused" for that reason and passes on a later attempt. Measured in this
+          # cluster: 422Mi resident while serving, so requests 512Mi and limits 1Gi.
           livenessProbe:
             httpGet:
               path: /health
@@ -65,7 +65,7 @@ spec:
           resources:
             requests:
               cpu: 100m
-              memory: 768Mi
+              memory: 512Mi
             limits:
               cpu: 1000m
               memory: 1Gi
