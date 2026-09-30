@@ -10,6 +10,10 @@ components:
   # CLUSTER-001: shared namespace + PSA labels; the per-app namespace.yaml this replaces was
   # byte-identical apart from its `name:`, which the kustomization's `namespace:` now supplies.
   - ../../components/namespace-baseline
+
+generators:
+  # SOPS-encrypted via ksops (kind: ksops) -- see secrets.sops.yaml, which holds GROQ_API_KEY
+  - secret-generator.yaml
 images:
   - name: ghcr.io/cheetos-gif/prism-streaming-rag
     newTag: latest
