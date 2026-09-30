@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
   - traefik-config.yaml
   - tlsstore.yaml
+  - redirects.yaml
 generators:
   # The Cloudflare Origin CA wildcard, SOPS-encrypted -- see tlsstore.yaml.
   - secret-generator.yaml
