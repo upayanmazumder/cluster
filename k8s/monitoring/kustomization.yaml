@@ -50,6 +50,7 @@ configMapGenerator:
     files:
       - vcap-logs.json
       - dashboard-node.json
+      - dashboard-kubernetes.json
       - dashboard-loki.json
       - dashboard-argocd.json
       - dashboard-vcap-dev.json
