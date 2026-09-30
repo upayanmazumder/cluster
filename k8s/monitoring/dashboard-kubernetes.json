@@ -1,0 +1,307 @@
+{
+  "title": "Kubernetes",
+  "uid": "kubernetes-overview",
+  "tags": ["infra", "kubernetes"],
+  "schemaVersion": 38,
+  "editable": false,
+  "id": null,
+  "refresh": "30s",
+  "time": {"from": "now-1h", "to": "now"},
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Pods Running",
+      "gridPos": {"x": 0, "y": 0, "w": 4, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"]},
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{"color": "green", "value": null}]
+          }
+        }
+      },
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "count(kube_pod_status_phase{phase=\"Running\"} == 1)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Pods Not Running",
+      "gridPos": {"x": 4, "y": 0, "w": 4, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"]},
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 1},
+              {"color": "red", "value": 5}
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "sum(kube_pod_status_phase{phase=~\"Pending|Failed|Unknown\"} == 1) OR on() vector(0)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Deployments Degraded",
+      "gridPos": {"x": 8, "y": 0, "w": 4, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"]},
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "red", "value": 1}
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "count(kube_deployment_status_replicas_available < kube_deployment_spec_replicas) OR on() vector(0)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Nodes Ready",
+      "gridPos": {"x": 12, "y": 0, "w": 4, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"]},
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{"color": "green", "value": null}]
+          }
+        }
+      },
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "sum(kube_node_status_condition{condition=\"Ready\",status=\"true\"} == 1)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Nodes Total",
+      "gridPos": {"x": 16, "y": 0, "w": 4, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"]},
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{"color": "blue", "value": null}]
+          }
+        }
+      },
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "count(kube_node_info)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Container Restarts (1h)",
+      "gridPos": {"x": 20, "y": 0, "w": 4, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"]},
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 1},
+              {"color": "red", "value": 5}
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "sum(increase(kube_pod_container_status_restarts_total[1h])) OR on() vector(0)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Pods by Phase",
+      "gridPos": {"x": 0, "y": 4, "w": 24, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "options": {
+        "legend": {"displayMode": "list", "placement": "bottom"},
+        "tooltip": {"mode": "multi"}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "sum(kube_pod_status_phase == 1) by (phase)",
+          "legendFormat": "{{phase}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU Usage by Namespace (cores)",
+      "gridPos": {"x": 0, "y": 12, "w": 24, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "options": {
+        "legend": {"displayMode": "list", "placement": "bottom"},
+        "tooltip": {"mode": "multi"}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "sum(rate(container_cpu_usage_seconds_total{container!=\"\",container!=\"POD\"}[5m])) by (namespace)",
+          "legendFormat": "{{namespace}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Memory Usage by Namespace",
+      "gridPos": {"x": 0, "y": 20, "w": 24, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "options": {
+        "legend": {"displayMode": "list", "placement": "bottom"},
+        "tooltip": {"mode": "multi"}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "sum(container_memory_working_set_bytes{container!=\"\",container!=\"POD\"}) by (namespace)",
+          "legendFormat": "{{namespace}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Deployment Replica Shortfall",
+      "gridPos": {"x": 0, "y": 28, "w": 24, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "options": {
+        "legend": {"displayMode": "list", "placement": "bottom"},
+        "tooltip": {"mode": "multi"}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "(kube_deployment_spec_replicas - kube_deployment_status_replicas_available) > 0",
+          "legendFormat": "{{namespace}}/{{deployment}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Container Restarts",
+      "gridPos": {"x": 0, "y": 36, "w": 24, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "options": {
+        "legend": {"displayMode": "list", "placement": "bottom"},
+        "tooltip": {"mode": "multi"}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "sum(increase(kube_pod_container_status_restarts_total[15m])) by (namespace, pod) > 0",
+          "legendFormat": "{{namespace}}/{{pod}}",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}
