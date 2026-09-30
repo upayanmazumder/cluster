@@ -33,7 +33,14 @@ jobs:
       - name: Build with Jekyll
         uses: actions/jekyll-build-pages@v1
         with:
-          source: ./
+          # The site is the operational documentation, and `docs/` is all of it. Sourcing the
+          # repository root instead made Jekyll treat the cluster's own files as website content:
+          # any file starting with `---` (every Ansible task file) and every front-matter-less
+          # Markdown file (`AGENTS.md`, via `jekyll-optional-front-matter`) were rendered as Liquid,
+          # so Ansible/Jinja `{{ ... }}` was parsed as a Liquid variable and the documented `{{` in
+          # AGENTS.md failed the build. `docs/_config.yml` holds the site config, because Jekyll
+          # reads `_config.yml` from its own source directory.
+          source: ./docs
           destination: ./_site
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

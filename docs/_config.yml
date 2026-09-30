@@ -1,0 +1,33 @@
+# Jekyll site configuration for the published documentation.
+#
+# The GitHub Pages build sources this directory — `source: ./docs` in
+# `.github/workflows/jekyll-gh-pages.yml` — so the site is `docs/` and only `docs/`. That one fact
+# is the fix, and it is worth writing down because the symptom does not explain it.
+#
+# The build used to source the repository root, which declared the entire cluster to be website
+# content, and then two independent Jekyll mechanisms rendered *infrastructure* through Liquid:
+#
+#   * Jekyll treats any file whose first line is `---` as a page — its YAML-header test reads line
+#     one only, and does not require a closing `---`. Every Ansible task file starts with `---`, so
+#     every Ansible/Jinja `{{ ... }}` in `ansible/` was parsed as a Liquid variable: a warning per
+#     expression, in `ansible/roles/{base,k3s,tailscale}`.
+#   * `jekyll-optional-front-matter`, a GitHub Pages default plugin, turns every front-matter-less
+#     Markdown file in the source into a page. That is how `AGENTS.md` — which documents the
+#     ApplicationSet template — reached the Liquid renderer at all, and the literal `{{` it documents
+#     failed the build outright (AGENTS.md:155).
+#
+# `k8s/`, `ansible/`, `terraform/`, `inventory/`, `scripts/`, `changelog/` and the repository-root
+# files are not site content, so none of them needs a per-path `exclude` list to rot as directories
+# come and go: they are simply not the source. Nothing in this configuration changes what Jekyll
+# reads out of the cluster, and the repository itself is untouched and still browsable on GitHub.
+#
+# One sharp edge remains, and it cannot be configured away on this stack: `github-pages` 232 pins
+# Jekyll 3.10, whose `Convertible#render_with_liquid?` decides by *content* — Liquid runs if the
+# file contains `{{` or `{%` — and ignores `render_with_liquid: false`, in front matter or in
+# `defaults` (both verified against the image the workflow builds with). No doc here contains
+# either sequence, so the build is clean. A future doc that quotes Jinja must wrap the excerpt in
+# `{% raw %}` … `{% endraw %}`; escaping or rewriting the Ansible and YAML it quotes is never the
+# fix.
+
+title: vps cluster docs
+description: Living operational documentation for the vps k3s cluster (Hetzner DE).
