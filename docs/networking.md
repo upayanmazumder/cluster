@@ -37,7 +37,7 @@ path (traced live before writing anything):
 | Shape | Namespaces | Allowed ingress |
 |---|---|---|
 | KEDA-HTTP-fronted | `cas-api`, `dj-html-nodejs-web`, `learning-docker`, `learning-qwik`, `smart-home-system-api`, `upayan-v5` | the interceptor pod in namespace `keda` (`app.kubernetes.io/component=interceptor`) only — public traffic reaches these via `k8s/platform/keda-add-ons-http-routes/`, never directly from Traefik |
-| Direct Traefik | `bandit`, `bitvault`, `cheatsheet`, `kodesphere`, `learning-react`, `meghmitra`, `rankstack`, `status-page`, `upayan-web`, vcap frontend `web` | Traefik (`kube-system`, `app.kubernetes.io/name=traefik`) + same-namespace pods, per workload on its real port |
+| Direct Traefik | `bandit`, `bitvault`, `cheatsheet`, `kodesphere`, `learning-react`, `meghmitra`, `prism-streaming-rag`, `rankstack`, `status-page`, `upayan-web`, vcap frontend `web` | Traefik (`kube-system`, `app.kubernetes.io/name=traefik`) + same-namespace pods, per workload on its real port |
 | No ingress at all | `mochi` | nothing — Discord gateway bot, outbound only, no Ingress exists |
 
 Datastore pods (meghmitra `postgres`; bitvault `postgres`/`minio`; rankstack `mongo`/`redis`;

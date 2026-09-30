@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prism-streaming-rag
+  labels:
+    app: prism-streaming-rag
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prism-streaming-rag
+  template:
+    metadata:
+      labels:
+        app: prism-streaming-rag
+    spec:
+      # D-3: best-effort app, reclaimed first under node pressure.
+      priorityClassName: low-priority
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - vps
+      containers:
+        - name: prism-streaming-rag
+          image: ghcr.io/cheetos-gif/prism-streaming-rag:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          env:
+            # `local` needs no API key: rule-based decomposition plus template synthesis.
+            - name: MODEL_PROVIDER
+              value: local
+            - name: HOST
+              value: 0.0.0.0
+            - name: PORT
+              value: "8000"
+            # The image ships the sentence-transformers model, so no runtime download.
+          # Startup loads torch and the embedding model, then builds the corpus index
+          # (controller/main.py lifespan) before uvicorn accepts connections: measured 11s
+          # locally with the model cached (the image bakes it in). Memory is ~590Mi idle,
+          # ~660Mi after a full replay, so the limit leaves headroom without letting the pod
+          # take the node down.
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 100m
+              memory: 768Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi

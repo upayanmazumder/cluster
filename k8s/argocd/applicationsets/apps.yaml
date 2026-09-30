@@ -93,6 +93,10 @@ spec:
             imageList: "app=ghcr.io/upayanmazumder/devjourney/learning-react:latest"
             alias0: app
             kustomize0: ghcr.io/upayanmazumder/devjourney/learning-react
+          - name: prism-streaming-rag
+            imageList: "app=ghcr.io/cheetos-gif/prism-streaming-rag:latest"
+            alias0: app
+            kustomize0: ghcr.io/cheetos-gif/prism-streaming-rag
           - name: smart-home-system-api
             imageList: "api=ghcr.io/upayanmazumder/smart-home-system/api:latest"
             alias0: api
