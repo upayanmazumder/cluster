@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: prism-streaming-rag
+resources:
+  - networkpolicy.yaml
+  - deployments.yaml
+  - services.yaml
+  - ingress.yaml
+components:
+  # CLUSTER-001: shared namespace + PSA labels; the per-app namespace.yaml this replaces was
+  # byte-identical apart from its `name:`, which the kustomization's `namespace:` now supplies.
+  - ../../components/namespace-baseline
+images:
+  - name: ghcr.io/cheetos-gif/prism-streaming-rag
+    newTag: latest

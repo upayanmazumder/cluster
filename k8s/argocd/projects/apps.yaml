@@ -43,6 +43,8 @@ spec:
     - server: https://kubernetes.default.svc
       namespace: mochi
     - server: https://kubernetes.default.svc
+      namespace: prism-streaming-rag
+    - server: https://kubernetes.default.svc
       namespace: rankstack
     - server: https://kubernetes.default.svc
       namespace: smart-home-system-api

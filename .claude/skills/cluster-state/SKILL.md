@@ -68,6 +68,7 @@ generator; "Explicit" rows are `k8s/argocd/applications/apps/<app>.yaml`.
 | `cheatsheet` | Set | `cheatsheet` | `sayantani.upayan.dev`, `api-sayantani.upayan.dev` | `…/cheatsheet:latest` |
 | `status-page` | Explicit | `status-page` | `status-page.upayan.dev`, `api-status-page.upayan.dev` | `…/status-page/{api,app}:latest` |
 | `kodesphere` | Set | `kodesphere` | `ks.upayan.dev`, `api.ks.upayan.dev` | `…/kodesphere:latest` |
+| `prism-streaming-rag` | Set | `prism-streaming-rag` | `prism.upayan.dev` | `ghcr.io/cheetos-gif/prism-streaming-rag:latest` |
 
 ### Platform
 
