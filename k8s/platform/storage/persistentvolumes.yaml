@@ -69,20 +69,25 @@ spec:
 # own `deploy/README.md` states that boundary explicitly ("The static PV the cluster side creates")
 # and specifies every field below; this file is that specification, reproduced.
 #
-# The claim (`meghmitra-data-pvc`) uses `storageClassName: ""` + `volumeName`, so it binds here and
-# never to a dynamically provisioned `local-path` volume that could silently land on the root disk.
-# `Retain` + `Delete=false,Prune=false` mean the store outlives the claim, and that no GitOps
-# mistake — including deleting this file — can prune it.
+# The claim (`adhigrahan-radar-data-pvc`) uses `storageClassName: ""` + `volumeName`, so it binds
+# here and never to a dynamically provisioned `local-path` volume that could silently land on the
+# root disk. `Retain` + `Delete=false,Prune=false` mean the store outlives the claim, and that no
+# GitOps mistake — including deleting this file — can prune it.
 #
-# `type: Directory` requires `/srv/data/meghmitra-data` to exist, owned by the UID/GID the API runs
-# as (10001). A hostPath volume keeps the host's ownership (the kubelet does not chown it) and the
-# app writes on every request, so an unwritable directory is a 500, not a log line. The directory is
-# declared in `ansible/roles/data_volume` (`data_volume_tenant_dirs`) and was created by hand on
-# 2026-09-29: `install -d -o 10001 -g 10001 -m 0750 /srv/data/meghmitra-data`.
+# Renamed 2026-09-30 from `meghmitra-data-pvc-vps` (hostnames/namespace/object-name rename to
+# match the tenant's own branding). The underlying data was NOT copied: `/srv/data/meghmitra-data`
+# was `mv`'d to `/srv/data/adhigrahan-radar-data` on the host (same disk, same inode, zero bytes
+# moved), so this is a fresh PV object over the same directory the old one pointed at, and needs no
+# `claimRef` handling — the old PV object is left in place, orphaned, for a deliberate follow-up
+# cleanup rather than pruned here (`Delete=false,Prune=false` would refuse it anyway).
+#
+# `type: Directory` requires `/srv/data/adhigrahan-radar-data` to exist, owned by the UID/GID the
+# API runs as (10001). A hostPath volume keeps the host's ownership (the kubelet does not chown it)
+# and the app writes on every request, so an unwritable directory is a 500, not a log line.
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: meghmitra-data-pvc-vps
+  name: adhigrahan-radar-data-pvc-vps
   annotations:
     argocd.argoproj.io/sync-options: Delete=false,Prune=false
 spec:
@@ -93,7 +98,7 @@ spec:
   persistentVolumeReclaimPolicy: Retain
   storageClassName: ""
   hostPath:
-    path: /srv/data/meghmitra-data
+    path: /srv/data/adhigrahan-radar-data
     type: Directory
   nodeAffinity:
     required:
