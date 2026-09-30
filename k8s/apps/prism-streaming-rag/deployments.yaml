@@ -33,14 +33,20 @@ spec:
           ports:
             - containerPort: 8000
           env:
-            # `local` needs no API key: rule-based decomposition plus template synthesis.
+            # `groq` writes the answer prose with Llama 3.3 70B instead of extracting sentences from
+            # the retrieved chunks; the key is in the SOPS-encrypted Secret mounted below.
             - name: MODEL_PROVIDER
-              value: local
+              value: groq
+            - name: GROQ_MODEL
+              value: llama-3.3-70b-versatile
             - name: HOST
               value: 0.0.0.0
             - name: PORT
               value: "8000"
             # The image ships the sentence-transformers model, so no runtime download.
+          envFrom:
+            - secretRef:
+                name: prism-streaming-rag-env
           # Startup loads torch and the embedding model, then builds the corpus index
           # (controller/main.py lifespan) before uvicorn accepts connections: ~11s on the
           # workstation, and the image bakes the model in. The first readiness probe fails with
