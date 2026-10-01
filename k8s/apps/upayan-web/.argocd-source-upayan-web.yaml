@@ -1,3 +1,3 @@
 kustomize:
   images:
-  - ghcr.io/upayanmazumder/upayan.dev=ghcr.io/upayanmazumder/upayan.dev:latest@sha256:9403b18af978bfab5c161a3ce07016d851eeef19ba7f46589cfc524dfc73e129
+  - ghcr.io/upayanmazumder/upayan.dev=ghcr.io/upayanmazumder/upayan.dev:latest@sha256:868864a4e22f09fb2d84cd88ae88d0247e6ba18d74b949b136256a9dc5f8064c
