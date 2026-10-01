@@ -138,12 +138,18 @@ Full command reference: `.claude/skills/argocd-ops/SKILL.md`.
   scale-to-zero apps rather than disabling self-heal.
 - **Image automation:** apps wanting auto-deploy-on-push carry `argocd-image-updater.argoproj.io/*`
   annotations on their `Application` (not a separate CRD). Digest-tracking (`:edge` tag) can go
-  either way on write-back: `rankstack.yaml`/`meghmitra.yaml` omit `write-back-method` and default
-  to an **in-cluster** Helm-parameter override (no git write), while the `apps` ApplicationSet
-  template sets `write-back-method: git:secret:argocd/git-creds` to commit the resolved digest
-  **back to git** — pick per-app based on whether you want the pin to survive as a git-visible
-  commit. Semver tracking (`upayan-v5`) uses kustomize `images:` overrides instead. A per-app
-  dedicated pull secret goes in `argocd-image-updater.argoproj.io/<alias>.pull-secret`.
+  either way on write-back — but **anything the `root` app-of-apps manages must write back to git**
+  (`write-back-method: git:secret:argocd/git-creds-updater`). root owns those Application objects
+  with `selfHeal` + `ServerSideApply`, so an **in-cluster** override (the bare default, no
+  `write-back-method`) is deleted within seconds of image-updater writing it, and the app then
+  oscillates between the pinned and unpinned revision — that is what restarted `rankstack`'s API pod
+  ~22×/hour on 2026-10-01 (306 pods in 6h; see that day's changelog). A Helm-sourced app points
+  `write-back-target` at a values file in this repo
+  (`helmvalues:/k8s/apps/<app>/values/image.yaml`, rendered last so it wins) so the updater's commit
+  lands where ArgoCD already reads values and the pin survives a rebuild from git alone; kustomize
+  apps let it land in the app's `kustomization.yaml`. The `apps` ApplicationSet template sets the
+  same git write-back. Semver tracking (`upayan-v5`) uses kustomize `images:` overrides instead. A
+  per-app dedicated pull secret goes in `argocd-image-updater.argoproj.io/<alias>.pull-secret`.
   **ApplicationSet apps:** the per-app image list lives inline in each `apps` list element
   (`imageList`, `alias0`, `kustomize0`); the template renders it into `image-list`,
   `<alias0>.update-strategy: digest` and `<alias0>.kustomize.image-name` annotations, with git
