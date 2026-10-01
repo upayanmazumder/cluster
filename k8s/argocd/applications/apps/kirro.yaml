@@ -1,0 +1,32 @@
+# kirro — explicit Application rather than a member of the `apps` ApplicationSet: its manifests
+# live in the app's own repo (github.com/Cheetos-gif/kirro, k8s/), not under k8s/apps/ in this
+# repo, which the set's template cannot express (repoURL is hardcoded to this repo there).
+#
+# No argocd-image-updater annotations: the write-back credential (`argocd/git-creds-updater`)
+# only has push access to this repo, not Cheetos-gif/kirro, where the image-pinning
+# kustomization.yaml would need to live. Deploys track `:latest` (imagePullPolicy: Always) and a
+# new image push needs a manual rollout restart:
+#   kubectl -n kirro rollout restart deploy/kirro-core deploy/kirro-mock
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kirro
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+spec:
+  project: apps
+  source:
+    repoURL: https://github.com/Cheetos-gif/kirro
+    targetRevision: main
+    path: k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kirro
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
