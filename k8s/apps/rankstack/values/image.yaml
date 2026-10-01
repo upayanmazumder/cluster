@@ -1,0 +1,14 @@
+# Managed by argocd-image-updater, not by hand -- it rewrites this file (git write-back
+# `helmvalues` target, see the annotations on k8s/argocd/applications/apps/rankstack.yaml) every
+# time the mutable `edge` tag resolves to a new digest.
+#
+# Why a separate file instead of image.* in prod.yaml: the updater re-marshals whatever file it
+# writes, so keeping the hand-authored, comment-annotated prod.yaml out of that round-trip means a
+# routine image bump cannot reformat or drop the reasoning recorded there. Rendered last (see the
+# Application's `helm.valueFiles`), so these keys win over the chart defaults.
+#
+# Seeded 2026-10-01 with the digest that was live at the switch from the in-cluster write-back; the
+# updater replaces it on each new ghcr.io/upayanmazumder/rankstack/api:edge build.
+image:
+  repository: ghcr.io/upayanmazumder/rankstack/api
+  tag: edge@sha256:b52699f221249c6ae6d62bf4b4488767e2b56ad34a528f4fd5716676cb9733ce
