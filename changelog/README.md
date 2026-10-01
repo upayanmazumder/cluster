@@ -10,6 +10,7 @@ older months are immutable history. Within a file, newest entries first.
 
 | Month | File |
 |---|---|
+| 2026-10 | [2026-10.md](2026-10.md) |
 | 2026-09 | [2026-09.md](2026-09.md) |
 | 2026-08 | [2026-08.md](2026-08.md) |
 
