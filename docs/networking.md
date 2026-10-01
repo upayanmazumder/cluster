@@ -6,15 +6,34 @@ the layers, not the individual ports.
 
 ## Current state
 
-- **A Hetzner Cloud Firewall exists and is deliberately permissive.** The `vps` firewall (Terraform
-  `hcloud_firewall`, held in the `cluster` checkout at `cluster/terraform/firewall.tf`) allows 22, 80,
-  443, 6443, 5432, 5433, udp/41641 and icmp from anywhere, and drops nothing else it is not asked to.
-  Attaching it changed nothing about reachability. Host `iptables` INPUT policy is `ACCEPT`, `ufw`
-  inactive, no `fail2ban`.
-- Everything k3s/kube-proxy expose is reachable from the internet by default: HTTP/HTTPS (fine,
-  Cloudflare-proxied), but also the k3s apiserver, kubelet, embedded etcd (client + peer ports —
-  a leftover from the deleted 2-node era), and node-exporter (leaking ~2.9k host metrics with no
-  auth).
+- **A Hetzner Cloud Firewall is attached, and it is no longer the permissive one this paragraph
+  used to describe.** It said the firewall "allows 22, 80, 443, 6443, 5432, 5433, udp/41641 and icmp
+  from anywhere" — that was the S2 ruleset and it has been wrong since N4 and N7 landed on
+  2026-09-29. What `terraform/firewall.tf` carries today:
+
+  | Rule | Source | Note |
+  |---|---|---|
+  | tcp/22 | `0.0.0.0/0`, `::/0` | root SSH, key-only. Closing it is N5 |
+  | tcp/80, tcp/443 | Cloudflare's published ranges | N4; built from `data.cloudflare_ip_ranges`, not a hand-copied list |
+  | tcp/6443 | `0.0.0.0/0`, `::/0` | the k3s apiserver, reachable from the internet. Closing it is N5 |
+  | tcp/15432, tcp/15433 | `0.0.0.0/0`, `::/0` | the VCAP Postgres edge (N7), TLS-required |
+  | udp/41641 | `0.0.0.0/0`, `::/0` | Tailscale; must stay open for NAT traversal |
+  | icmp | `0.0.0.0/0`, `::/0` | answered |
+
+  **5432 and 5433 are gone from the ruleset** (N7 removed them). A Hetzner firewall is an allow-list,
+  so everything absent from that table is dropped. Host `iptables` INPUT policy is still `ACCEPT`,
+  `ufw` inactive, no `fail2ban` — the cloud firewall is the only packet filter, which is what N6 is
+  for.
+- **The two that matter are 22 and 6443.** Root SSH and the kube-apiserver are both reachable from
+  any address on the internet, and both are marked `remove` in the port registry. N5 closes them and
+  is blocked on a tailnet path proven from every admin machine — see `terraform/firewall.tf`, which
+  records that one workstation did not have Tailscale installed when this was last checked.
+- What the firewall *did* close, on 2026-09-28, by having no rule for them: the kubelet (10250),
+  embedded etcd's client and peer ports (2379/2380 — a leftover from the deleted 2-node era), the
+  flannel VXLAN port (8472), node-exporter (9100, which also no longer uses `hostNetwork`), and the
+  auto-allocated Traefik NodePorts (30843/30851). They are listed as `closed` rather than removed
+  because several are still bound on the public interface; the firewall, not the listener, is what
+  makes them unreachable.
 - **vcap Postgres is no longer reachable from the internet.** 5432/5433 were Traefik TCP passthrough
   entrypoints plus **unmanaged** `IngressRouteTCP` objects and duplicate NodePort Services; the
   NodePorts were deleted 2026-09-29 and the tenant chart's own same-namespace NetworkPolicy blocks the

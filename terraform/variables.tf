@@ -45,10 +45,10 @@ variable "cloudflare_access_api_token" {
   sensitive   = true
   default     = ""
 
-  # Empty by default so `terraform plan` on a tree without the N3 token stays inert (with
-  # `enable_cloudflare_access = false` no Access resource is planned, so the empty token is never
-  # used). The pairing "access enabled but no token" is refused by a `precondition` in `access.tf`,
-  # not here — a variable validation cannot see the other variable (see the note above).
+  # Empty by default, and with `enable_cloudflare_access` now defaulting to **true** that empty
+  # value is what makes a credential-less checkout stop rather than guess: the second
+  # `precondition` in `access.tf` refuses the plan and names this variable. It is refused there and
+  # not here because a variable validation cannot see another variable (see the note above).
 }
 
 variable "emergency_ssh_cidr" {

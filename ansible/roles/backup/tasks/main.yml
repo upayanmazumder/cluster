@@ -215,6 +215,16 @@
 # (monthly end-to-end drill), and pushing etcd snapshots plus the k3s token/TLS to restic from
 # vps-etcd-snapshot.sh.
 # Added 2026-09-29: the DR-001 offsite leg — `vps-backup-offsite.sh` (+ service/timer, hourly), a
-# `restic copy` of all tags from the local repository into the R2 `vps-backups` repository. Deployed
-# and no-op until a destination is configured; the R2 credentials do not exist yet, so nothing here
-# ran against the host.
+# `restic copy` of all tags from the local repository into the R2 `vps-backups` repository.
+#
+# **It is live.** This paragraph said "the R2 credentials do not exist yet, so nothing here ran
+# against the host", which was true when the leg landed inert that morning and false from 03:28 IST
+# the same day: the credentials were added to `/etc/vps-backup/r2.env`, `restic init` ran against the
+# R2 repository, `vps-backup-offsite.timer` was enabled, and the first copy completed
+# (`100.00% 2 / 2 packs copied` — see changelog/2026-09.md, 2026-09-29 03:28 IST). Leaving the old
+# sentence here is how a reader concludes "there is no offsite copy" about a cluster that has one,
+# and `docs/disaster-recovery.md` has said the opposite since.
+#
+# What is still true, and is the reason the task list below is unchanged: this role does not enable
+# the timer and does not create `{{ backup_offsite_env_file }}`. Both stay operator steps, so a
+# *fresh* host is inert until someone does them.

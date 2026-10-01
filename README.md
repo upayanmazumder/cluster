@@ -57,7 +57,7 @@ Layering, and who owns what:
 | Secrets | SOPS + age, `ksops` generator in the ArgoCD repo-server |
 | Monitoring | Prometheus, Grafana, Loki, Promtail, kube-state-metrics, node-exporter |
 | Backups | restic (node-local repo) + Cloudflare R2 offsite; etcd snapshots |
-| IaC | Terraform for the provider layer — held in the **`cluster`** checkout, `cluster/terraform/`; `terraform/` here is a pointer |
+| IaC | Terraform for the provider layer — `terraform/` in this repository (13 `.tf` files; state in R2). This row said "`terraform/` here is a pointer", written while the tree was still exported from the private `vps` repo; `cluster` **is** the owning checkout, which is what `scripts/tf.sh` refuses to run outside of |
 
 ## Directory map
 
@@ -77,7 +77,8 @@ inventory/ports.yaml    machine-readable port registry (docs/ports.md is its hum
 docs/                   operational docs — architecture, storage, backups, DR, ports, runbooks, ADRs
 changelog/              forensic timeline of every change (git and break-glass), split by month
 scripts/                validation + inventory scripts (render-all, check-secrets, check-links, …)
-terraform/              pointer only — the configuration lives in the `cluster` checkout
+terraform/              the provider layer: Hetzner server/IPs/firewall, R2 buckets, Cloudflare zone
+                        settings and Access. Run it only through `scripts/tf.sh`
 .claude/                agent rules, skills and sub-agent specs used to work in this repo
 .github/workflows/      CI: render, schema, secret scan, redaction, lint
 ```
