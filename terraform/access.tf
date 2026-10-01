@@ -5,21 +5,34 @@
 # N3 lands, the *only* thing in front of them is a login form. Access puts an identity check at
 # Cloudflare's edge, before the request ever reaches Traefik.
 #
-# **Nothing here is applied.** Everything is gated on `enable_cloudflare_access` (default **false**),
-# so `terraform plan` on the current tree shows no changes at all — verified, not assumed. Two reasons
-# for the gate rather than creating the resources unconditionally:
+# **This is applied.** N3 went live on 2026-09-29 and the two applications and two policies exist.
+# The header below used to open "Nothing here is applied", written while the flag still defaulted to
+# `false`; that sentence stopped being true the day Access was turned on, and it is corrected rather
+# than deleted because the reasoning under it still explains the shape of the file.
+#
+# `enable_cloudflare_access` now defaults to **true**. It defaulted to `false`, and that combination
+# — a feature that is live, a flag that says it is not, and identities in a git-ignored tfvars —
+# meant `terraform plan` from any checkout without the tfvars reported `4 to destroy` and an apply
+# would have silently removed the only identity check in front of the ArgoCD and Grafana UIs. With
+# `true`, that same checkout hits the first precondition below instead and stops with a message that
+# names what is missing. The allow-list itself stays out of git (SEC-006/TF-003); only the fact that
+# Access exists moved into the tree.
+#
+# The two reasons the gate exists at all are unchanged, and the first is why the default can be
+# flipped safely:
 #
 #   1. **An Access policy with an empty allow-list is an outage.** It would deny everyone, including
 #      the owner, for ArgoCD — and the recovery path (port-forward) is a workstation trick, not
 #      something to discover at the moment the control plane is dark. The `lifecycle.precondition` on
-#      `cloudflare_zero_trust_access_application.admin_ui` makes that state unrepresentable: flipping
-#      the flag without supplying identities fails the plan before anything is created.
+#      `cloudflare_zero_trust_access_application.admin_ui` makes that state unrepresentable: an
+#      enabled flag without identities fails the plan before anything is created.
 #   2. The plan's own ordering puts N3 after N2 (a proven tailnet path), because the documented
 #      fallback for the ArgoCD CLI is `kubectl port-forward` over the tailnet rather than through the
 #      browser.
 #
-# To turn it on, an operator supplies the identities out-of-band (never in git — a personal address in
-# a published file is exactly what `docs/plans/redaction-checklist.md` §1 exists to stop):
+# An operator supplies the identities out-of-band (never in git — a personal address in a published
+# file is exactly what `docs/plans/redaction-checklist.md` §1 exists to stop). With the default now
+# `true`, this file is not optional setup: it is what a working checkout needs before it can plan.
 #
 #   cat > terraform/access.auto.tfvars          # git-ignored; TF-003
 #   enable_cloudflare_access = true
@@ -49,11 +62,13 @@
 # **Measured 2026-09-29, all three states, before committing:**
 #   | `enable_cloudflare_access` | `access_allowed_emails` | `terraform plan` |
 #   |---|---|---|
-#   | false (default) | `[]` | **No changes.** Your infrastructure matches the configuration. |
-#   | true | `[]` | **refused** — `Resource precondition failed: enable_cloudflare_access = true requires access_allowed_emails…` |
-#   | true | `["<one address>"]` | **`Plan: 4 to add, 0 to change, 0 to destroy`** (2 applications + 2 policies) |
+#   | false | `[]` | **No changes** against a tree where Access does not exist — and, against today's
+#     live account, `4 to destroy`. That second column is the reason the default moved. |
+#   | true (default) | `[]` | **refused** — `Resource precondition failed: enable_cloudflare_access = true requires access_allowed_emails…` |
+#   | true (default) | `["<one address>"]` | **`Plan: 4 to add, 0 to change, 0 to destroy`** on a fresh account; no changes once applied |
 # So the gate is real in both directions: it cannot lock anyone out by being applied empty, and it does
-# do exactly what it claims when armed.
+# do exactly what it claims when armed. What changed is only which of the three rows a checkout with no
+# tfvars lands on — the middle one, which stops, instead of the first, which destroys.
 
 locals {
   # `{}` when the feature is off, which is what makes the resources below disappear from the plan

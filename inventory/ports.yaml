@@ -5,14 +5,29 @@
 #   - two entries share the same (port, proto, scope), or
 #   - a NodePort/LoadBalancer Service or hostPort in k8s/ has no matching entry here.
 #
-# `status` values:
-#   live    — reachable today, matches current-state review (docs/plans/2026-09-27-architecture-review.md §4)
-#   target  — reachable in the S6-final firewall state, not yet applied
+# `status` values (validated by scripts/check-ports.py — an unknown value is an error, because the
+# checks branch on this field and a typo used to make an entry silently invisible to all of them):
+#   live    — reachable today
+#   open    — reachable today, deliberately and recently opened (the N7 Postgres edge)
 #   remove  — reachable today, scheduled for removal (duplicate/unmanaged path)
+#   target  — NOT reachable; the intended future state
+#   closed  — NOT reachable; the listener exists but nothing can get to it
+#   removed — NOT reachable; the path itself is gone
+#
+# The first three assert "the internet can reach this today", and scripts/check-ports.py requires
+# each of them to have a matching inbound rule in terraform/firewall.tf — and every rule there to
+# have one of them here. The Hetzner Cloud Firewall is an allow-list, so "a rule exists" and "it is
+# reachable" are one statement; before 2026-09-30 nothing compared the two files and they had
+# drifted in both directions.
 #
 # `scope`: internal (pod/cluster network only) | tailnet (Tailscale-only) | public (open internet)
 #
 # Last verified live: 2026-09-27 (ss -Hltnp on the node + external TCP probe from workstation).
+# Reconciled against terraform/firewall.tf on 2026-09-30 — see the `status` notes below. That
+# reconciliation is a *documentary* one: it is sound because the firewall is an allow-list and
+# Terraform is the only thing that writes it, but the rows it changed from `remove` to `closed`
+# (2379, 2380, 8472, 9100, 10250, 30843, 30851) have not been re-probed from outside since
+# 2026-09-27. A fresh external scan is the cheap way to confirm it.
 # See docs/ports.md for the human-readable render and docs/networking.md for the firewall layers.
 
 - port: 22
@@ -24,7 +39,7 @@
   scope: public
   status: remove
   reason: "key-only root SSH; target state moves admin access to Tailscale only (S3/S6)"
-  firewall_rule: none (no Hetzner Cloud Firewall exists yet)
+  firewall_rule: "tcp 22 from 0.0.0.0/0 and ::/0 — **applied**. The parenthetical here used to read 'no Hetzner Cloud Firewall exists yet', which stopped being true on 2026-09-28. The firewall exists and deliberately allows 22 from anywhere; `status: remove` is still correct because closing it is N5, gated on a proven tailnet path from every admin machine."
   ingress: direct
   auth: ssh key (root only)
   temporary: false
@@ -54,7 +69,7 @@
   scope: public
   status: live
   reason: "HTTP entrypoint; Cloudflare-proxied for every *.upayan.dev host, permanent redirect to 443 planned (S7)"
-  firewall_rule: "target (S6): tcp 80 from Cloudflare IPv4+IPv6 ranges only"
+  firewall_rule: "tcp 80 from Cloudflare's published ranges only — **applied** (N4, 2026-09-29; terraform/firewall.tf builds the list from `data.cloudflare_ip_ranges`). No longer a target."
   ingress: "ServiceLB (svclb-traefik) binds host 80"
   auth: per-app
   temporary: false
@@ -69,7 +84,7 @@
   scope: public
   status: live
   reason: "HTTPS entrypoint for every *.upayan.dev host"
-  firewall_rule: "target (S6): tcp 443 from Cloudflare IPv4+IPv6 ranges only"
+  firewall_rule: "tcp 443 from Cloudflare's published ranges only — **applied** (N4, 2026-09-29). No longer a target."
   ingress: "ServiceLB (svclb-traefik) binds host 443"
   auth: per-app
   temporary: false
@@ -100,7 +115,7 @@
   scope: public — **open** (verified 2026-09-29)
   status: open
   reason: "Owner decision OD-1: the public path is 15432, not 5432 — a non-default port is defence against mass scanning, not a security control on its own. It stays closed until ALL of: TLS at Traefik with a private-CA leaf (sslmode=verify-ca), a non-superuser vcap_app role, pg_hba that rejects network superuser logins, per-person non-superuser roles, the cluster-owned additive ingress NetworkPolicy, and auth-failure alerting — AND the VCAP team accepts the chart-side pg_hba/role change (OD-16). Today both instances are ssl=off and the only login role is a superuser."
-  firewall_rule: "target (P7-N7): tcp 15432 from 0.0.0.0/0 and ::/0 — NO such rule exists today"
+  firewall_rule: "tcp 15432 from 0.0.0.0/0 and ::/0 — **this rule exists and is applied** (terraform/firewall.tf, N7, 2026-09-29). This field said 'NO such rule exists today' until 2026-09-30, contradicting the `status: open` three lines above it and the Terraform that had carried the rule for a day; scripts/check-ports.py now compares the two so the pair cannot disagree again."
   ingress: "Traefik vcap-pg-dev entrypoint (P7-N7) -> IngressRouteTCP with tls.secretName"
   auth: "TLS required (sslmode=verify-full recommended — the leaf carries DNS:pg-dev.upayan.dev — verify-ca the minimum) + scram, per-person non-superuser roles"
   temporary: false
@@ -132,7 +147,7 @@
   scope: public — **open** (verified 2026-09-29)
   status: open
   reason: "Same contract as 15432 (OD-1), and additionally gated on the VCAP team's acceptance of the pg_hba/non-superuser change (OD-16) because this instance holds class A student data. Nothing about it may open before the 15432 path has been exercised first."
-  firewall_rule: "target (P7-N7): tcp 15433 from 0.0.0.0/0 and ::/0 — NO such rule exists today"
+  firewall_rule: "tcp 15433 from 0.0.0.0/0 and ::/0 — **this rule exists and is applied** (terraform/firewall.tf, N7, 2026-09-29, after 15432 had been exercised). Was 'NO such rule exists today' until 2026-09-30; see the 15432 entry."
   ingress: "Traefik vcap-pg-staging entrypoint (P7-N7) -> IngressRouteTCP with tls.secretName"
   auth: "TLS required (sslmode=verify-ca) + scram, per-person non-superuser roles"
   temporary: false
@@ -180,9 +195,9 @@
   namespace: kube-system
   owner: platform
   scope: public
-  status: remove
-  reason: "kube-proxy auto-allocates a NodePort for every LoadBalancer Service; duplicates 80, no separate purpose"
-  firewall_rule: "target (S6): closed (not in the allow-list)"
+  status: closed
+  reason: "kube-proxy auto-allocates a NodePort for every LoadBalancer Service; duplicates 80, no separate purpose. **Unreachable since 2026-09-28**, closed by the Hetzner Cloud Firewall: it is an allow-list, attached to the node since 2026-09-28 (terraform/firewall.tf, `hcloud_firewall_attachment.vps`), and it carries no rule for this port. It cannot be removed while ServiceLB is in use, so it stays listed and `closed`."
+  firewall_rule: "none (not in the allow-list) — which, the firewall being an allow-list, is what closes it"
   ingress: NodePort (auto-allocated)
   auth: n/a
   temporary: false
@@ -195,9 +210,9 @@
   namespace: kube-system
   owner: platform
   scope: public
-  status: remove
-  reason: "duplicates 443, kube-proxy auto-allocated"
-  firewall_rule: "target (S6): closed (not in the allow-list)"
+  status: closed
+  reason: "duplicates 443, kube-proxy auto-allocated. **Unreachable since 2026-09-28**, closed by the Hetzner Cloud Firewall: it is an allow-list, attached to the node since 2026-09-28 (terraform/firewall.tf, `hcloud_firewall_attachment.vps`), and it carries no rule for this port. Not removable while ServiceLB is in use, so it stays listed and `closed`."
+  firewall_rule: "none (not in the allow-list) — which, the firewall being an allow-list, is what closes it"
   ingress: NodePort (auto-allocated)
   auth: n/a
   temporary: false
@@ -274,9 +289,9 @@
   namespace: null
   owner: platform
   scope: public
-  status: remove
-  reason: "kubelet API; must be tailnet/cluster-internal only"
-  firewall_rule: none today
+  status: closed
+  reason: "kubelet API; must be tailnet/cluster-internal only. **Unreachable from the internet since 2026-09-28**, closed by the Hetzner Cloud Firewall: it is an allow-list, attached to the node since 2026-09-28 (terraform/firewall.tf, `hcloud_firewall_attachment.vps`), and it carries no rule for this port. The listener is still bound on the public interface, so this is `closed`, not `removed` — the tailnet row below is the supported path."
+  firewall_rule: "none, deliberately — and with an allow-list firewall attached, no rule means dropped"
   ingress: direct (hostNetwork)
   auth: webhook authn
   temporary: false
@@ -304,9 +319,9 @@
   namespace: null
   owner: platform
   scope: public
-  status: remove
-  reason: "embedded etcd bound to the public IP as well as loopback — leftover from the 2-node cluster-init era; must be closed"
-  firewall_rule: none today
+  status: closed
+  reason: "embedded etcd bound to the public IP as well as loopback — leftover from the 2-node cluster-init era. **Unreachable since 2026-09-28**, closed by the Hetzner Cloud Firewall: it is an allow-list, attached to the node since 2026-09-28 (terraform/firewall.tf, `hcloud_firewall_attachment.vps`), and it carries no rule for this port. Still `closed` rather than `removed` because the listener is still bound on the public interface: retiring it needs N6's host firewall or an etcd listen-address change, and until then the firewall is the only thing in front of it."
+  firewall_rule: "none, deliberately — and with an allow-list firewall attached, no rule means dropped"
   ingress: direct (hostNetwork)
   auth: mTLS
   temporary: false
@@ -319,9 +334,9 @@
   namespace: null
   owner: platform
   scope: public
-  status: remove
-  reason: "same as 2379 — peer port, single-member cluster now, no peer needed externally"
-  firewall_rule: none today
+  status: closed
+  reason: "same as 2379 — peer port, single-member cluster now, no peer needed externally. **Unreachable since 2026-09-28**, closed by the Hetzner Cloud Firewall: it is an allow-list, attached to the node since 2026-09-28 (terraform/firewall.tf, `hcloud_firewall_attachment.vps`), and it carries no rule for this port; still bound, so `closed` rather than `removed`."
+  firewall_rule: "none, deliberately — and with an allow-list firewall attached, no rule means dropped"
   ingress: direct (hostNetwork)
   auth: mTLS
   temporary: false
@@ -334,9 +349,9 @@
   namespace: monitoring
   owner: platform
   scope: public
-  status: remove
-  reason: "hostNetwork DaemonSet leaks ~2.9k host metrics with no auth; must bind 127.0.0.1 or drop hostNetwork (S9)"
-  firewall_rule: none today
+  status: closed
+  reason: "**Two layers now, and both landed.** The DaemonSet no longer sets `hostNetwork` (k8s/monitoring/node-exporter-daemonset.yaml records the removal and why), so the ~2.9k unauthenticated host metrics are not bound to the public IP at all; and closed by the Hetzner Cloud Firewall: it is an allow-list, attached to the node since 2026-09-28 (terraform/firewall.tf, `hcloud_firewall_attachment.vps`), and it carries no rule for this port. Prometheus scrapes it in-cluster through the Service."
+  firewall_rule: "none, deliberately — and with an allow-list firewall attached, no rule means dropped"
   ingress: direct (hostNetwork)
   auth: none
   temporary: false
@@ -351,7 +366,7 @@
   scope: public
   status: live
   reason: "Tailscale WireGuard endpoint; must stay reachable from any IP for NAT traversal"
-  firewall_rule: "target (S6): udp 41641 from 0.0.0.0/0 and ::/0"
+  firewall_rule: "udp 41641 from 0.0.0.0/0 and ::/0 — **applied**. Must stay open from any IP for Tailscale NAT traversal."
   ingress: direct
   auth: WireGuard (Tailscale-managed keys)
   temporary: false
@@ -364,9 +379,9 @@
   namespace: null
   owner: platform
   scope: public
-  status: remove
-  reason: "pod-network overlay; never needs to be reachable off-host (single node) — close at S6"
-  firewall_rule: none today
+  status: closed
+  reason: "pod-network overlay; never needs to be reachable off-host on a single node. **Unreachable since 2026-09-28**, closed by the Hetzner Cloud Firewall: it is an allow-list, attached to the node since 2026-09-28 (terraform/firewall.tf, `hcloud_firewall_attachment.vps`), and it carries no rule for this port; the socket is still bound for the overlay itself, so `closed` rather than `removed`."
+  firewall_rule: "none, deliberately — and with an allow-list firewall attached, no rule means dropped"
   ingress: direct
   auth: none
   temporary: false

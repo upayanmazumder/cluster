@@ -25,9 +25,10 @@ plan.out
 # Two things are deliberately NOT affected:
 #   - `secrets.sops.yaml` — SOPS ciphertext is the sanctioned way to keep a secret
 #     in git. Note these patterns do not match it; do not add a `*.yaml` rule here.
-#   - `archived/**` was historical exports, tracked; the directory was deleted 2026-09-29 (CLEAN-001)
-#     except `archived/vcap-db-exposure/`, which stays until NET-001 has been stable 14 days
-#     to files git already tracks.
+#   - the patterns below are `.gitignore` rules, so they only affect files git does not already
+#     track. (This bullet used to describe `archived/**`, a directory CLEAN-001 deleted on
+#     2026-09-29 and which is not in the tree; its last line — "to files git already tracks" — was
+#     a fragment left from an earlier edit, so the one statement worth keeping is restored here.)
 # If a legitimate .pem/.key genuinely must be tracked, use `git add -f` and be ready
 # to justify it — SOPS is almost certainly the right answer instead.
 *.pem

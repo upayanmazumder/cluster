@@ -6,6 +6,10 @@
 # `gitleaks git` scans commits, which is the point: the working-tree scan CI also runs cannot see a secret
 # that was committed and then deleted. The version is pinned to match CI so a local pass means the same
 # thing it does there, and `--redact` keeps a finding from printing the value it found.
+#
+# Pinned by **digest** as well as tag, matching `.github/workflows/validate.yml`. A tag is mutable, so
+# `:v8.30.1` alone could be re-pushed and this hook would then run a different scanner than CI does --
+# which defeats the sentence above. Bump both together.
 repos:
   - repo: local
     hooks:
@@ -19,7 +23,7 @@ repos:
         #
         # The history scan still exists and still runs: it is a CI job in the published repository
         # (`.github/workflows/validate.yml`), where the history it checks is the clean one.
-        entry: docker run --rm -v "$PWD:/repo" -w /repo zricethezav/gitleaks:v8.30.1 git --pre-commit --staged --config /repo/.gitleaks.toml --redact --no-banner
+        entry: docker run --rm -v "$PWD:/repo" -w /repo zricethezav/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f git --pre-commit --staged --config /repo/.gitleaks.toml --redact --no-banner
         language: system
         pass_filenames: false
         always_run: true

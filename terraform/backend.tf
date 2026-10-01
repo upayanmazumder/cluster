@@ -29,8 +29,14 @@
 #      admin token: the two are separate by design, and neither is ever committed.
 #        export AWS_ACCESS_KEY_ID=...        # from the owner, out of band
 #        export AWS_SECRET_ACCESS_KEY=...
-#   2. Uncomment the block above and replace `<account-id>` (the endpoint is not a secret, but it is
-#      per-account, so it is not written down here).
+#   2. Uncomment the block above and replace `<account-id>`. **This parenthetical used to read "so it
+#      is not written down here" — which is false:** the live `backend "s3"` block further down this
+#      file carries the full endpoint, account id included, and has since the Phase 2 switch. The id
+#      is not a credential (nothing can be done with it alone, and `cloudflare.tf` declares it as a
+#      variable default too), but a comment that says a value is absent while the same file publishes
+#      it is the kind of thing a reader trusts and should not. If it is ever to be kept out of the
+#      tree, the backend takes it via `-backend-config=endpoints=...` — a backend block cannot
+#      interpolate a variable — and that is a change to `scripts/tf.sh`, not to this comment.
 #   3. terraform init -migrate-state        # local -> R2, carrying the existing state with it
 #   4. terraform plan                       # must show NO changes; that is this task's validation
 #   5. Back up the local state file offline before deleting it, then delete `terraform.tfstate*`

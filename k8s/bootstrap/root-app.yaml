@@ -1,10 +1,27 @@
+# The app-of-apps root. This is the ONE manifest applied by hand (see README.md in this
+# directory) — it lives outside `k8s/argocd/`, so ArgoCD does not reconcile it and an edit here
+# takes effect only when someone re-applies it.
+#
+# `project: bootstrap` (was `default`). The built-in `default` project permits `'*'` everywhere,
+# which made every enumerated whitelist in `k8s/argocd/projects/` bypassable by any Application
+# placed in it — see the reasoning in `k8s/argocd/projects/bootstrap.yaml`.
+#
+# **Because this file is not reconciled, merging the change does nothing on its own.** The live
+# root Application stays in `default` until:
+#
+#     kubectl apply -f k8s/bootstrap/root-app.yaml
+#     kubectl -n argocd get app root -o jsonpath='{.spec.project}'   # -> bootstrap
+#     kubectl -n argocd get applications                             # -> all still Synced
+#
+# That is CLAUDE.md rule 2's root-app bootstrap write, so it needs its own changelog entry. Only
+# after it is done can `AppProject/default` be declared with empty allowlists.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: root
   namespace: argocd
 spec:
-  project: default
+  project: bootstrap
   source:
     repoURL: https://github.com/upayanmazumder/cluster
     targetRevision: main

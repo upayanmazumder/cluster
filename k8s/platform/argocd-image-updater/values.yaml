@@ -2,16 +2,22 @@
 # Requires:
 #   - Secret `argocd/git-creds`   (PAT with repo write access, for git write-back)
 #
-# Registry credentials: deliberately NONE. A `credentials: pullsecret:argocd/ghcr-creds`
-# line was removed 2026-09-28 because that PAT is dead (GitHub returns 401 on
-# `GET /user`, 403 on `ghcr.io/token`, both re-verified), and a *rejected* credential
-# is worse than no credential — it is sent on every request, so even publicly
-# pullable packages fail with `denied: denied`. Without it, anonymous pulls work:
-# 18 of the 23 configured images are public. The 5 private ones
+# Registry credentials: `pullsecret:argocd/ghcr-creds`, configured under `config.registries` below.
+#
+# **This header used to open "deliberately NONE" — directly contradicting the `credentials:` line
+# 20 lines further down.** Both halves of the story were written and neither was deleted: the line
+# was removed on 2026-09-28 because the PAT was dead (GitHub returned 401 on `GET /user` and 403 on
+# `ghcr.io/token`, and a *rejected* credential is worse than none — it is sent on every request, so
+# even public packages fail with `denied: denied`), and it was **restored later the same day** once
+# the owner refreshed the token. The restoration is recorded beside the `credentials:` line; this
+# paragraph was not updated with it.
+#
+# Kept, because it is the reasoning that matters if the token ever dies again: without credentials,
+# anonymous pulls still work for 18 of the 23 configured images. The 5 private ones
 # (`upayanmazumder/bitvault/bitvaultd`, `vitscopesoftwareteam/vcap-staging-backend/{api,auth,worker}`,
-# `vitscopesoftwareteam/vcap-staging-frontend/web`) cannot be tracked until an owner
-# supplies a PAT with `read:packages` (or per-package access) — they are unaffected
-# functionally, being digest-pinned and pulled via their own `pull-secret`s.
+# `vitscopesoftwareteam/vcap-staging-frontend/web`) simply stop being tracked — they keep running,
+# being digest-pinned and pulled via their own `pull-secret`s. So removing the line is the right
+# response to a dead token, and restoring it is the right response to a live one.
 # P6-02/P6-06: paused at 0 through the cutover (P6-02) and resumed here (P6-06).
 # `replicaCount` is the chart's own key (verified against argo/argocd-image-updater 0.14.0).
 # It was paused because it writes commits to a git repository, and during the source switch it would

@@ -22,13 +22,40 @@ RESTIC_REPOSITORY="{{ backup_restic_repository | default('') }}"
 # --keep-monthly 12; class C --keep-daily 7) is a SEPARATE weekly script/timer, not run here on
 # every backup — see ansible/roles/backup/README.md.
 
-mkdir -p "$STAGING_DIR/pg" "$STAGING_DIR/mongo"
+# 0700, not the umask default. Everything that lands under $STAGING_DIR is a plaintext dump of a
+# production database -- vcap-staging's class-A student data among them -- sitting on disk between
+# the dump and the restic run. `mkdir -p` with root's usual umask makes those directories 0755, so
+# any local account, and any container with a hostPath onto them, could read the lot. The rest of
+# this role is already explicit about this (`/etc/vps-backup` is 0750, its env file 0600); the
+# staging tree was the one place that inherited whatever the umask happened to be.
+#
+# `install -d` sets the mode on creation rather than after it, so there is no window in which the
+# directory exists world-readable. Applied to $STAGING_DIR itself as well as the two children,
+# because `mkdir -p` would otherwise create the parent with the default mode.
+install -d -m 700 "$STAGING_DIR" "$STAGING_DIR/pg" "$STAGING_DIR/mongo"
 overall_rc=0
+
+# Shared by both dump helpers. `--field-selector=status.phase=Running` is the whole point: the
+# previous form took the FIRST name `kubectl get pods` returned, in any phase, so a Terminating or
+# Pending replica left over from a rollout could be selected ahead of the live one. `kubectl exec`
+# into a Terminating pod fails late and loudly (which is survivable), but into a fresh Pending one
+# it can succeed against a database that has not finished starting -- a dump that is short, exits
+# 0, and looks like a backup. Phase-filtering costs nothing and removes the whole case.
+#
+# The `grep` substring match is kept deliberately rather than replaced with `-l`: the registry in
+# backup-targets.yaml names workloads, not label selectors, and the tenant charts do not share one
+# labelling convention. `-r` (no name may look like a regex) and `-m1` keep it predictable.
+running_pod() {
+  local ns="$1" workload="$2"
+  kubectl get pods -n "$ns" --field-selector=status.phase=Running -o name \
+    | grep -m1 -F -- "$workload" | cut -d/ -f2
+}
 
 pg_dump_target() {
   local ns="$1" workload="$2"
   local pod
-  pod=$(kubectl get pods -n "$ns" -o name | grep "$workload" | head -1 | cut -d/ -f2) || return 1
+  pod=$(running_pod "$ns" "$workload") || return 1
+  [ -n "$pod" ] || { echo "no Running pod matching '$workload' in namespace '$ns'" >&2; return 1; }
   kubectl exec -n "$ns" "$pod" -- sh -c '
     set -e
     PGPASSWORD="$POSTGRES_PASSWORD" pg_dump -U "$POSTGRES_USER" -Fc "$POSTGRES_DB" -f "/tmp/backup.dump"
@@ -42,7 +69,8 @@ pg_dump_target() {
 mongo_dump_target() {
   local ns="$1" workload="$2"
   local pod
-  pod=$(kubectl get pods -n "$ns" -o name | grep "$workload" | head -1 | cut -d/ -f2) || return 1
+  pod=$(running_pod "$ns" "$workload") || return 1
+  [ -n "$pod" ] || { echo "no Running pod matching '$workload' in namespace '$ns'" >&2; return 1; }
   # --oplog when the target asks for it: makes a replica-set dump point-in-time consistent.
   local oplog_flag=""
   [ "$(jq -r '.oplog // false' <<<"$target_json")" = "true" ] && oplog_flag="--oplog"

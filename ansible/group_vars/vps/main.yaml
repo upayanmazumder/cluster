@@ -44,13 +44,18 @@ k3s_allow_restart: false
 # from /srv/data so it survives a vps-data problem and covers the common loss modes (accidental
 # deletion, a bad migration, logical corruption). It does NOT survive losing the host, which is what
 # the S4 target (Cloudflare R2, bucket `vps-backups`, already created by Terraform in S2) is for.
-# R2 state verified 2026-09-28: bucket `vps-backups` exists (region WEUR, Standard) and is **empty** —
-# 0 objects, 0 bytes, 0 uploads — i.e. the offsite leg has never run. The API cannot mint long-lived
-# R2 S3 keys (only temporary credentials), so the owner must create them in the dashboard:
-# R2 → Manage R2 API Tokens → Create API Token, scoped to `vps-backups` with Object Read & Write.
-# Switching to R2 is: set this to s3:https://<account-id>.r2.cloudflarestorage.com/vps-backups, add
-# the R2 keys to group_vars/vps/secrets.sops.yaml as r2_access_key_id/r2_secret_access_key, re-run
-# this role, `restic init` the new repo, then point the timers at it.
+# **The offsite leg exists now, and this value is still correct.** The paragraph that used to sit
+# here said the `vps-backups` bucket was "**empty** — 0 objects … i.e. the offsite leg has never
+# run", measured on 2026-09-28. That stopped being true at 03:28 IST on 2026-09-29, when DR-001 was
+# enabled and the first `restic copy` completed.
+#
+# It is deliberately NOT the way R2 was adopted, though, and that is why this variable still points
+# at the local path: DR-001 copies from this repository into a second, independent one in R2
+# (`vps-backup-offsite.sh`, hourly) rather than making R2 the primary. The copy carries snapshots the
+# restore drill has already verified; repointing this variable would instead produce a second,
+# unverified snapshot set and put every backup behind a network call. The R2 endpoint and its
+# bucket-scoped S3 keys live host-locally in `/etc/vps-backup/r2.env` and never pass through Ansible,
+# SOPS or git — so there is nothing to add to `secrets.sops.yaml` either.
 backup_restic_repository: /var/backups/restic
 
 # ANS-004: pinned. Verified installed on the node 2026-09-28 (`dpkg-query -W restic` — Ubuntu 24.04).

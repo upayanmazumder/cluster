@@ -3,8 +3,14 @@
 #
 # On a fresh node the cluster has an API server and nothing else. ArgoCD cannot be left to a
 # `kubectl apply -f k8s/bootstrap/root-app.yaml` alone, because:
-#   1. the app-of-apps repo is private, so ArgoCD needs its repo credentials *before* it can fetch
-#      anything — and those credentials live SOPS-encrypted inside the very repo it cannot fetch;
+#   1. ArgoCD needs its repo credentials *before* it can fetch anything, and those credentials live
+#      SOPS-encrypted inside the repository it is trying to fetch. (This said "the app-of-apps repo
+#      is private", which was the reason when it was written and is no longer true —
+#      `upayanmazumder/cluster` is public. The chicken-and-egg survives the change of visibility:
+#      step 3 also installs the *tenant* repo credentials and the image-updater's write-back key,
+#      and `configs.secret.createSecret: false` means `argocd-secret` itself — the admin hash and
+#      `server.secretkey` — comes from the same SOPS file. A public source repo removes one of the
+#      reasons for this step, not the step.)
 #   2. ksops needs the age-cluster key, which is (correctly) never in git;
 #   3. ArgoCD itself is installed by Helm and afterwards adopted by its self-managed Application.
 #

@@ -13,8 +13,11 @@ settings). See `../changelog/2026-09.md` (2026-09-28 entries) for the full apply
 schema/doc errors it caught, and a state-loss mistake that was made and fully recovered in the same
 sitting.
 
-State is currently **local only** (`terraform.tfstate`, gitignored) — the planned R2 backend
-migration hasn't happened yet, see "What's still blocked" below.
+State lives in the `vps-tfstate` R2 bucket (`s3://vps-tfstate/vps/terraform.tfstate`) since
+2026-09-29 (TF-001). This paragraph used to say "local only — the planned R2 backend migration
+hasn't happened yet", which `backend.tf`'s own header already corrected; both now agree. R2 has no
+bucket versioning, so the only archive is the offline copy under
+`~/.local/share/vps-tfstate-backup/` that `scripts/tf.sh` writes before every state-writing command.
 
 ## Files
 
@@ -45,7 +48,11 @@ migration hasn't happened yet, see "What's still blocked" below.
    values, not a duplicate.
 2. **DNS records** — deliberately not written; run `cf-terraforming` against the live zone first
    (see the comment at the top of `cloudflare.tf`).
-3. **Cloudflare Access apps** (ArgoCD/Grafana) — S6 scope, not S2.
+3. ~~**Cloudflare Access apps** (ArgoCD/Grafana)~~ — **done.** N3 landed 2026-09-29; `access.tf`
+   holds them and `enable_cloudflare_access` now defaults to **true**, so a checkout without the
+   git-ignored `access.auto.tfvars` fails the plan on a precondition instead of planning to destroy
+   the applications. Supplying `access_allowed_emails` is therefore part of setting up a working
+   checkout, not an optional extra — see the header of `access.tf`.
 
 ## Bootstrap sequence (for a fresh checkout, credentials already known)
 

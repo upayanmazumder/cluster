@@ -1,0 +1,67 @@
+# The project the app-of-apps root runs in.
+#
+# Why it exists: `k8s/bootstrap/root-app.yaml` used `project: default`, and ArgoCD's built-in
+# `default` project permits `'*'` for sourceRepos, destinations, clusterResourceWhitelist and
+# namespaceResourceWhitelist. Two consequences, and the second is the one that matters:
+#
+#   1. the root Application — which carries `prune: true, selfHeal: true` — held unrestricted
+#      privilege over the whole cluster, which is more than it needs by a wide margin;
+#   2. more importantly, `default` is a *shared* project. Anything that can create an Application
+#      in the `argocd` namespace can put it in `default` and target any repository and any
+#      cluster-scoped kind. So every enumerated whitelist in this directory — the ones S11 and
+#      ESC-001 exist to establish — was bypassable by the one project nobody had declared.
+#
+# This project is what root actually needs and nothing else: this repository, the `argocd`
+# namespace, and the three kinds that live under `k8s/argocd/`.
+#
+# **This file alone does not close (2). It cannot.** The live root Application still says
+# `project: default` until `k8s/bootstrap/root-app.yaml` is re-applied by hand (it is the one
+# manifest ArgoCD does not reconcile — it sits outside `k8s/argocd/`), so declaring a locked-down
+# `default` in the same commit would freeze root the moment it merged. The order is:
+#
+#   1. merge this (inert: a new AppProject nothing references yet);
+#   2. `kubectl apply -f k8s/bootstrap/root-app.yaml`  — root moves to this project. Confirm with
+#      `kubectl -n argocd get app root -o jsonpath='{.spec.project}'` and that every Application is
+#      still `Synced`;
+#   3. *then* declare `AppProject/default` here with empty allowlists, in its own reviewed change.
+#
+# Honest about what this does not fix: an Application in this project may create AppProjects, so it
+# can mint a permissive one. That is inherent to app-of-apps and cannot be designed away here — the
+# control is that `sourceRepos` is this repository only, and `main` requires the CI checks.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: bootstrap
+  namespace: argocd
+  annotations:
+    # Same reasoning as the other projects (P3-02): root must never prune the project it is itself
+    # running in. Losing it stops every sync in the cluster.
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+spec:
+  description: >-
+    The app-of-apps root Application only. It reads k8s/argocd/ from this repository and creates the
+    AppProjects, Applications and ApplicationSets found there; it deploys no workload itself.
+  sourceRepos:
+    - https://github.com/upayanmazumder/cluster
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: argocd
+  # `Namespace` and nothing else. Root's `syncOptions` carry `CreateNamespace=true`, and ArgoCD
+  # treats the destination Namespace as a managed resource when that is set (measured on v2.14.11 —
+  # see the note in projects/meghmitra.yaml), so without this a fresh bootstrap fails on its first
+  # sync. It cannot be scoped to one name: an AppProject whitelist selects by kind, not by object.
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+  # Exactly the three kinds under k8s/argocd/, verified against the tree: 5 AppProject, 13
+  # Application, 1 ApplicationSet. Anything else root is ever asked to render fails visibly as
+  # "not permitted in project bootstrap" rather than being applied.
+  namespaceResourceWhitelist:
+    - group: argoproj.io
+      kind: AppProject
+    - group: argoproj.io
+      kind: Application
+    - group: argoproj.io
+      kind: ApplicationSet
+  orphanedResources:
+    warn: true

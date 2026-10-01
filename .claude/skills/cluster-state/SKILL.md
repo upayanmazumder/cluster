@@ -38,10 +38,22 @@ Since S11 (2026-09-28) every project above lists its **destination namespaces** 
 namespace to `k8s/argocd/projects/apps.yaml` (see `.claude/skills/app-onboarding/SKILL.md` §7).
 A mismatch fails loudly (`namespace <x> is not permitted in project <y>`), it does not mis-sync.
 
-Not tightened, deliberately: the built-in `default` project (still `namespace: "*"`, `server: "*"`,
-cluster kinds `*`), which is where the `root` app runs. `root` manages the AppProjects and
-Applications themselves, so moving it into a restricted project is self-referential and needs its
-own careful change; noted here as the remaining gap rather than changed blind.
+The `root` app has its own project, `bootstrap` (`k8s/argocd/projects/bootstrap.yaml`): this
+repository, the `argocd` namespace, `Namespace` at cluster scope, and the three `argoproj.io` kinds
+that live under `k8s/argocd/`. It replaces `default`, which permits `'*'` everywhere and is shared —
+so any Application placed in it could target any repository and any cluster-scoped kind, which made
+the enumerated whitelists above bypassable.
+
+**Still open, and it is a two-step for a reason:** `k8s/bootstrap/root-app.yaml` is the one manifest
+ArgoCD does not reconcile, so the live `root` stays in `default` until it is re-applied by hand.
+Check which project it is actually in before assuming:
+
+```bash
+kubectl -n argocd get app root -o jsonpath='{.spec.project}'
+```
+
+Once that reads `bootstrap`, declaring `AppProject/default` with empty allowlists is the change that
+closes the gap. Doing it earlier freezes root.
 
 ## Application inventory
 

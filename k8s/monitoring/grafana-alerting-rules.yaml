@@ -57,7 +57,7 @@ groups:
             params: []
         refId: C
     for: 5m
-    noDataState: Alerting
+    noDataState: OK
     execErrState: Error
     labels:
       severity: critical
@@ -115,7 +115,7 @@ groups:
             params: []
         refId: C
     for: 5m
-    noDataState: Alerting
+    noDataState: OK
     execErrState: Error
     labels:
       severity: critical
@@ -174,7 +174,7 @@ groups:
             params: []
         refId: C
     for: 2m
-    noDataState: Alerting
+    noDataState: OK
     execErrState: Error
     labels:
       severity: critical
@@ -234,7 +234,7 @@ groups:
             params: []
         refId: C
     for: 0m
-    noDataState: Alerting
+    noDataState: OK
     execErrState: Error
     labels:
       severity: critical
@@ -294,7 +294,7 @@ groups:
             params: []
         refId: C
     for: 10m
-    noDataState: Alerting
+    noDataState: OK
     execErrState: Error
     labels:
       severity: critical
@@ -371,7 +371,7 @@ groups:
             params: []
         refId: C
     for: 1h
-    noDataState: Alerting
+    noDataState: OK
     execErrState: Error
     labels:
       severity: critical
@@ -429,7 +429,7 @@ groups:
             params: []
         refId: C
     for: 10m
-    noDataState: Alerting
+    noDataState: OK
     execErrState: Error
     labels:
       severity: critical
@@ -487,7 +487,7 @@ groups:
             params: []
         refId: C
     for: 10m
-    noDataState: Alerting
+    noDataState: OK
     execErrState: Error
     labels:
       severity: critical
@@ -606,7 +606,7 @@ groups:
             params: []
         refId: C
     for: 0m
-    noDataState: Alerting
+    noDataState: OK
     execErrState: Error
     labels:
       severity: critical
@@ -667,7 +667,7 @@ groups:
             params: []
         refId: C
     for: 10m
-    noDataState: Alerting
+    noDataState: OK
     execErrState: Error
     labels:
       severity: critical
@@ -726,7 +726,7 @@ groups:
             params: []
         refId: C
     for: 10m
-    noDataState: Alerting
+    noDataState: OK
     execErrState: Error
     labels:
       severity: critical
@@ -784,7 +784,7 @@ groups:
             params: []
         refId: C
     for: 2m
-    noDataState: Alerting
+    noDataState: OK
     execErrState: Error
     labels:
       severity: critical
@@ -900,10 +900,13 @@ groups:
             params: []
         refId: C
     for: 10m
-    # No data is itself a failure here: the metric only exists while a backup has succeeded since
-    # the last node-exporter restart, so a vanished series means backups are not running — unlike
-    # the other rules, where silence is normal. Added 2026-09-28 with the vps-backup timers.
-    noDataState: Alerting
+    # `NoData: OK`, and the "a vanished series means backups are not running" case is NOT lost — it
+    # moved to its own `absent()` rule at the bottom of this file. Folding the two into one
+    # condition is what made this rule fire permanently: the expression is a *filter*, so a healthy
+    # backup produces no series, which Grafana reports as NoData, which `Alerting` turned into
+    # firing. Separated, each half says one thing: this rule means "the last success is too old",
+    # the `absent()` rule means "I cannot see the metric at all".
+    noDataState: OK
     execErrState: Error
     labels:
       severity: critical
@@ -961,10 +964,13 @@ groups:
             params: []
         refId: C
     for: 10m
-    # No data is itself a failure here: the metric only exists while a backup has succeeded since
-    # the last node-exporter restart, so a vanished series means backups are not running — unlike
-    # the other rules, where silence is normal. Added 2026-09-28 with the vps-backup timers.
-    noDataState: Alerting
+    # `NoData: OK`, and the "a vanished series means backups are not running" case is NOT lost — it
+    # moved to its own `absent()` rule at the bottom of this file. Folding the two into one
+    # condition is what made this rule fire permanently: the expression is a *filter*, so a healthy
+    # backup produces no series, which Grafana reports as NoData, which `Alerting` turned into
+    # firing. Separated, each half says one thing: this rule means "the last success is too old",
+    # the `absent()` rule means "I cannot see the metric at all".
+    noDataState: OK
     execErrState: Error
     labels:
       severity: warning
@@ -1022,10 +1028,10 @@ groups:
             params: []
         refId: C
     for: 15m
-    # No data is a failure for these too: each metric only exists while its job has succeeded since
-    # the last node-exporter restart, so a missing series means it is not running (added 2026-09-28
-    # with the restic-check, restore-drill and etcd-offsite jobs).
-    noDataState: Alerting
+    # `NoData: OK`, with the "the metric is missing entirely" half split out into its own `absent()`
+    # rule at the bottom of this file — see the class-A rule above for why the two cannot share one
+    # condition.
+    noDataState: OK
     execErrState: Error
     labels:
       severity: warning
@@ -1083,10 +1089,10 @@ groups:
             params: []
         refId: C
     for: 15m
-    # No data is a failure for these too: each metric only exists while its job has succeeded since
-    # the last node-exporter restart, so a missing series means it is not running (added 2026-09-28
-    # with the restic-check, restore-drill and etcd-offsite jobs).
-    noDataState: Alerting
+    # `NoData: OK`, with the "the metric is missing entirely" half split out into its own `absent()`
+    # rule at the bottom of this file — see the class-A rule above for why the two cannot share one
+    # condition.
+    noDataState: OK
     execErrState: Error
     labels:
       severity: warning
@@ -1144,10 +1150,10 @@ groups:
             params: []
         refId: C
     for: 15m
-    # No data is a failure for these too: each metric only exists while its job has succeeded since
-    # the last node-exporter restart, so a missing series means it is not running (added 2026-09-28
-    # with the restic-check, restore-drill and etcd-offsite jobs).
-    noDataState: Alerting
+    # `NoData: OK`, with the "the metric is missing entirely" half split out into its own `absent()`
+    # rule at the bottom of this file — see the class-A rule above for why the two cannot share one
+    # condition.
+    noDataState: OK
     execErrState: Error
     labels:
       severity: critical
@@ -1215,12 +1221,11 @@ groups:
     # are: the local repository still holds every snapshot, so a stale offsite copy widens the
     # disaster-recovery window rather than losing data now — the critical rules are the ones whose
     # failure means the only copy stops being written.
-        # `NoData: OK` here, deliberately, unlike the other staleness rules above. This series only exists
-    # once a copy has SUCCEEDED, and the role's README has the operator prove one manual run before
-    # enabling the timer — so "no series" means "not set up yet", not "broken". With the other rules'
-    # `Alerting` this would fire from the moment it syncs until the R2 credentials arrive, which is an
-    # alert nobody can resolve; a known-firing alert is one people learn to ignore. Once the leg is
-    # enabled, a *stale* series still fires, which is the case DR-001 actually wants caught.
+    # `NoData: OK` — this rule already had it, and it is now what every staleness rule here does.
+    # The reason it got there first still holds and is why this one gets NO companion `absent()`
+    # rule: the series only exists once a copy has SUCCEEDED, and the leg is credential-gated, so
+    # "no series" legitimately means "not set up yet" rather than "broken". Once the leg is enabled,
+    # a *stale* series still fires, which is the case DR-001 wants caught.
     noDataState: OK
     execErrState: Error
     labels:
@@ -1279,10 +1284,10 @@ groups:
             params: []
         refId: C
     for: 15m
-    # No data is a failure here too: if the series vanishes, Loki is down or no longer scraped, and
-    # either way log shipping is unwatched. (Added with the scrape job — before that, Prometheus held
-    # zero loki_ series, so this alert would have been inert.)
-    noDataState: Alerting
+    # `NoData: OK`. "The series vanished, so Loki is down or unscraped" is still caught — by the
+    # `loki-metrics-absent` rule at the bottom of this file, and by `prometheus-target-down`. This
+    # rule is now only about ingestion having stopped while Loki is up.
+    noDataState: OK
     execErrState: Error
     labels:
       severity: warning
@@ -1507,3 +1512,372 @@ groups:
       severity: warning
     annotations:
       summary: 'More than 10 failed ArgoCD logins in 10m — credential guessing against the cluster control plane. The admin account is `admin`, and Cloudflare Access (N3) should be in front of this host.'
+
+  # --- "I cannot see the metric at all" -----------------------------------------------------------
+  #
+  # Companions to the staleness rules above, and the other half of the fix for the defect recorded in
+  # changelog/2026-09.md (2026-09-29, 21:45 IST): 18 of 24 rules fired permanently because a threshold
+  # expression is a *filter* — healthy means no series, Grafana calls that NoData, and `noDataState:
+  # Alerting` turned it into firing. The staleness rules deliberately carried `Alerting` to cover a
+  # second, real case ("the metric vanished, so the job is not running"), and that case is what these
+  # rules take over, so nothing is lost by the flip.
+  #
+  # `absent(x)` is the inverse shape: it returns a series (value 1) exactly when `x` is missing, and
+  # nothing when it is present. So the healthy state HAS data and `noDataState: OK` is correct for
+  # these too — the two rule shapes now agree instead of contradicting.
+  #
+  # Overlap with `prometheus-target-down` (`up == 0`) is deliberate: that rule catches node-exporter
+  # being down, these catch the textfile metric being gone while node-exporter is up — a fresh node
+  # after a rebuild where no backup has run yet, or a deleted .prom file. `for:` is generous for
+  # exactly that reason: a rebuild should not page before the first timer has had a chance to fire.
+  #
+  # `vps_backup_offsite_last_success_timestamp` deliberately has NO rule here — see the note on
+  # `vps-backup-offsite-stale` above.
+  - uid: vps-backup-classa-absent
+    title: VPS backup (class A) metric is missing entirely
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        editorMode: code
+        expr: absent(vps_backup_last_success_timestamp{class="A"})
+        instant: true
+        range: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: A
+    - refId: B
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: __expr__
+      model:
+        type: reduce
+        expression: A
+        reducer: last
+        settings:
+          mode: dropNN
+        refId: B
+    - refId: C
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        expression: B
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - C
+          reducer:
+            type: last
+            params: []
+        refId: C
+    for: 30m
+    noDataState: OK
+    execErrState: Error
+    labels:
+      severity: critical
+    annotations:
+      summary: 'No `vps_backup_last_success_timestamp{class="A"}` series exists at all — no class-A backup has succeeded since the textfile collector was last populated, so the vcap-staging Postgres+MinIO data is unprotected. On a rebuilt node this is expected until the first run; otherwise check `systemctl status vps-backup-classA` and that /var/lib/node_exporter/textfile_collector/vps_backup_class_A.prom exists.'
+  - uid: vps-backup-classc-absent
+    title: VPS backup (class C) metric is missing entirely
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        editorMode: code
+        expr: absent(vps_backup_last_success_timestamp{class="C"})
+        instant: true
+        range: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: A
+    - refId: B
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: __expr__
+      model:
+        type: reduce
+        expression: A
+        reducer: last
+        settings:
+          mode: dropNN
+        refId: B
+    - refId: C
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        expression: B
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - C
+          reducer:
+            type: last
+            params: []
+        refId: C
+    for: 2h
+    noDataState: OK
+    execErrState: Error
+    labels:
+      severity: warning
+    annotations:
+      summary: 'No `vps_backup_last_success_timestamp{class="C"}` series exists at all — no class-C backup (bitvault, vcap-dev, rankstack, grafana) has ever succeeded here. Check `systemctl status vps-backup-classC` on the node.'
+  - uid: vps-restic-check-absent
+    title: restic integrity-check metric is missing entirely
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        editorMode: code
+        expr: absent(vps_restic_check_last_success_timestamp)
+        instant: true
+        range: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: A
+    - refId: B
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: __expr__
+      model:
+        type: reduce
+        expression: A
+        reducer: last
+        settings:
+          mode: dropNN
+        refId: B
+    - refId: C
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        expression: B
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - C
+          reducer:
+            type: last
+            params: []
+        refId: C
+    for: 2h
+    noDataState: OK
+    execErrState: Error
+    labels:
+      severity: warning
+    annotations:
+      summary: 'No `vps_restic_check_last_success_timestamp` series exists at all — the weekly `restic check` has never succeeded here, so repository corruption would go unnoticed until a restore is attempted. Run `systemctl start vps-restic-check.service` on the node.'
+  - uid: vps-restore-test-absent
+    title: restore-drill metric is missing entirely
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        editorMode: code
+        expr: absent(vps_restore_test_last_success_timestamp)
+        instant: true
+        range: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: A
+    - refId: B
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: __expr__
+      model:
+        type: reduce
+        expression: A
+        reducer: last
+        settings:
+          mode: dropNN
+        refId: B
+    - refId: C
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        expression: B
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - C
+          reducer:
+            type: last
+            params: []
+        refId: C
+    for: 2h
+    noDataState: OK
+    execErrState: Error
+    labels:
+      severity: warning
+    annotations:
+      summary: 'No `vps_restore_test_last_success_timestamp` series exists at all — the monthly restore drill has never succeeded here, so the backups are unproven. Run `systemctl start vps-restore-test.service` on the node.'
+  - uid: vps-etcd-snapshot-absent
+    title: etcd snapshot metric is missing entirely
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        editorMode: code
+        expr: absent(vps_etcd_snapshot_last_success_timestamp)
+        instant: true
+        range: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: A
+    - refId: B
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: __expr__
+      model:
+        type: reduce
+        expression: A
+        reducer: last
+        settings:
+          mode: dropNN
+        refId: B
+    - refId: C
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        expression: B
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - C
+          reducer:
+            type: last
+            params: []
+        refId: C
+    for: 30m
+    noDataState: OK
+    execErrState: Error
+    labels:
+      severity: critical
+    annotations:
+      summary: 'No `vps_etcd_snapshot_last_success_timestamp` series exists at all — no etcd snapshot (with the k3s token/TLS that makes a restore possible) has succeeded here. Check `journalctl -u vps-etcd-snapshot` on the node.'
+  - uid: loki-metrics-absent
+    title: Loki is not being scraped
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        editorMode: code
+        expr: absent(loki_distributor_bytes_received_total)
+        instant: true
+        range: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: A
+    - refId: B
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: __expr__
+      model:
+        type: reduce
+        expression: A
+        reducer: last
+        settings:
+          mode: dropNN
+        refId: B
+    - refId: C
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        expression: B
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - C
+          reducer:
+            type: last
+            params: []
+        refId: C
+    for: 30m
+    noDataState: OK
+    execErrState: Error
+    labels:
+      severity: warning
+    annotations:
+      summary: 'Prometheus holds no `loki_distributor_bytes_received_total` series — Loki is down or its scrape job is broken, so `loki-ingestion-stopped` is blind. Check the `loki` scrape target in Prometheus and `kubectl -n monitoring get pods -l app=loki`.'
