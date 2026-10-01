@@ -15,6 +15,7 @@ spec:
   sourceRepos:
     - https://github.com/upayanmazumder/cluster
     - https://github.com/upayanmazumder/rankstack
+    - https://github.com/Cheetos-gif/kirro
   # S11: destinations enumerated instead of `namespace: "*"`. Adding an app
   # means adding its namespace here too; a mismatch fails loudly ("namespace X
   # is not permitted in project apps") rather than deploying anywhere.
@@ -27,6 +28,8 @@ spec:
       namespace: cas-api
     - server: https://kubernetes.default.svc
       namespace: dj-html-nodejs-web
+    - server: https://kubernetes.default.svc
+      namespace: kirro
     - server: https://kubernetes.default.svc
       namespace: kodesphere
     - server: https://kubernetes.default.svc
