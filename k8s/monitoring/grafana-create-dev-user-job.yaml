@@ -112,8 +112,12 @@ spec:
 
               upsert_user "VCAP Dev"     "vcap-dev@upayan.dev"     "${DEV_USER}"     "${DEV_PASSWORD}"
               upsert_user "VCAP Staging" "vcap-staging@upayan.dev" "${STAGING_USER}" "${STAGING_PASSWORD}"
+              # KIRRO voice-channel logs (2026-10-03): the same role-account shape as the two VCAP
+              # viewers, but the address is also the login. It stays out of this file — the address
+              # is a personal one, and it reaches the job from the SOPS Secret instead.
+              upsert_user "KIRRO"        "${KIRRO_EMAIL}"          "${KIRRO_EMAIL}"  "${KIRRO_PASSWORD}"
 
-              for pair in "vcap-dev@upayan.dev:${DEV_USER}" "vcap-staging@upayan.dev:${STAGING_USER}"; do
+              for pair in "vcap-dev@upayan.dev:${DEV_USER}" "vcap-staging@upayan.dev:${STAGING_USER}" "${KIRRO_EMAIL}:${KIRRO_EMAIL}"; do
                 email=${pair%%:*}; login=${pair##*:}
                 prune_stale "$email" "$(lookup "$login" | jq -r '.id // empty')"
               done
@@ -158,4 +162,14 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: grafana-staging-credentials
+                  key: password
+            - name: KIRRO_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-kirro-credentials
+                  key: email
+            - name: KIRRO_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-kirro-credentials
                   key: password
