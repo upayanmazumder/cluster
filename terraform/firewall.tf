@@ -99,6 +99,35 @@ resource "hcloud_firewall" "vps" {
     port       = "15433"
     source_ips = ["0.0.0.0/0", "::/0"]
   }
+  # The `kirro` voice channel's WebRTC media (2026-10-02). LiveKit's self-hosted room server
+  # (k8s/apps parity: the manifests live in Cheetos-gif/kirro, namespace `kirro`) carries browser
+  # audio, and media **cannot** go through Traefik or any Kubernetes Ingress -- only the signalling
+  # WebSocket can, and that one arrives on 443 like every other `*.upayan.dev` host. So these two
+  # are reachable directly on the node's address, which is why they need rules at all.
+  #
+  # Two ports, not LiveKit's default 50000-60000 range: `rtc.udp_port` is set to a single muxed UDP
+  # port in the app's ConfigMap, deliberately, so the internet-facing surface is one UDP port plus a
+  # TCP fallback instead of ten thousand. The TCP port is the fallback for networks that block UDP
+  # (corporate wifi, some mobile carriers); without it those callers get no audio at all.
+  #
+  # Both are public by design (`source_ips = 0.0.0.0/0`): any browser that can reach
+  # voice-kirro.upayan.dev must also be able to reach the media path, and the caller's address is
+  # not knowable in advance. Authorisation is the signalling JWT -- a room join token signed with the
+  # key pair in the `kirro-voice` Secret, which the portal mints only for a signed-in user -- not
+  # source-IP restriction. Ports are registered as `live` in inventory/ports.yaml; the registry and
+  # this file are cross-checked by scripts/check-ports.py.
+  rule {
+    direction  = "in"
+    protocol   = "tcp"
+    port       = "7881"
+    source_ips = ["0.0.0.0/0", "::/0"]
+  }
+  rule {
+    direction  = "in"
+    protocol   = "udp"
+    port       = "7882"
+    source_ips = ["0.0.0.0/0", "::/0"]
+  }
   rule {
     direction  = "in"
     protocol   = "udp"
