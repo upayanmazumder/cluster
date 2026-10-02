@@ -1,0 +1,65 @@
+{
+  "title": "KIRRO — Infra",
+  "uid": "kirro-infra",
+  "tags": ["kirro", "voice", "prometheus"],
+  "schemaVersion": 38,
+  "editable": false,
+  "id": null,
+  "refresh": "1m",
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "kirro pod CPU",
+      "description": "The worker's CPU ceiling is load-bearing: at 500m it was throttled ~18% of periods and callers heard choppy audio.",
+      "gridPos": { "x": 0, "y": 0, "w": 8, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "cores", "custom": { "fillOpacity": 10 } } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"kirro\", container!=\"\", container!=\"POD\"}[5m]))",
+          "queryType": "range",
+          "editorMode": "code",
+          "legendFormat": "{{pod}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "kirro pod memory",
+      "gridPos": { "x": 8, "y": 0, "w": 8, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "bytes", "custom": { "fillOpacity": 10 } } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"kirro\", container!=\"\", container!=\"POD\"})",
+          "queryType": "range",
+          "editorMode": "code",
+          "legendFormat": "{{pod}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "kirro pod restarts",
+      "description": "A restart mid-call drops it; the session log's close reason says participant_disconnected.",
+      "gridPos": { "x": 16, "y": 0, "w": 8, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 10 } } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (pod) (kube_pod_container_status_restarts_total{namespace=\"kirro\"})",
+          "queryType": "range",
+          "editorMode": "code",
+          "legendFormat": "{{pod}}"
+        }
+      ]
+    }
+  ]
+}
