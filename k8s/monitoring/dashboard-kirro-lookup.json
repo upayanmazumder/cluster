@@ -1,0 +1,60 @@
+{
+  "title": "KIRRO — Call Lookup",
+  "uid": "kirro-lookup",
+  "tags": ["kirro", "voice", "loki"],
+  "schemaVersion": 38,
+  "editable": false,
+  "id": null,
+  "refresh": "",
+  "time": { "from": "now-6h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "call_id",
+        "label": "call id",
+        "description": "Paste a call id from the portal (shown beside the transcript) or from 'Recent calls' below. Empty = every KIRRO line.",
+        "type": "textbox",
+        "query": "",
+        "current": { "text": "", "value": "" },
+        "hide": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "logs",
+      "title": "Call log — filter with the call id box above",
+      "description": "One call, start to finish: the greeting, every turn (thread_id, latency_ms, redacted query/answer), any pipeline error, and the close reason. Leave the box empty to see every KIRRO line.",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 16 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": { "showTime": true, "showLabels": false, "showCommonLabels": false, "wrapLines": true, "prettifyJson": true, "enableLogDetails": true, "sortOrder": "Descending" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{filename=~\"/var/log/containers/.+_kirro_.+\"} |= \"$call_id\"",
+          "queryType": "range",
+          "editorMode": "code",
+          "maxLines": 1000
+        }
+      ]
+    },
+    {
+      "type": "logs",
+      "title": "Recent calls — copy an id into the box above",
+      "gridPos": { "x": 0, "y": 16, "w": 24, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": { "showTime": true, "showLabels": false, "showCommonLabels": false, "wrapLines": false, "prettifyJson": false, "enableLogDetails": true, "sortOrder": "Descending" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{filename=~\"/var/log/containers/.+_kirro_kirro-voice-.+\"} | json | message=\"voice session started\" | line_format \"{{.call_id}}  room={{.room}}\"",
+          "queryType": "range",
+          "editorMode": "code",
+          "maxLines": 200
+        }
+      ]
+    }
+  ]
+}
