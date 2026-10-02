@@ -391,14 +391,14 @@
 - port: 7881
   proto: tcp
   service: kirro voice channel — LiveKit room server (WebRTC over TCP)
-  k8s_service: kirro-livekit:7880 signalling; media is hostNetwork, not a Service
+  k8s_service: kirro-livekit-media (LoadBalancer, externalTrafficPolicy Local); signalling is kirro-livekit:7880
   namespace: kirro
   owner: upayan (app owner)
   scope: public
   status: live
-  reason: "WebRTC media over TCP, the fallback for callers whose network blocks UDP (corporate wifi, some mobile carriers). Without it those callers connect and hear nothing. The room server runs with `hostNetwork: true` because WebRTC media cannot traverse a Kubernetes Ingress — only the signalling WebSocket can, and that one arrives on 443 like every other *.upayan.dev host."
+  reason: "WebRTC media over TCP, the fallback for callers whose network blocks UDP (corporate wifi, some mobile carriers). Without it those callers connect and hear nothing. WebRTC media cannot traverse a Kubernetes Ingress — only the signalling WebSocket can, and that one arrives on 443 like every other *.upayan.dev host. The port is published by a `LoadBalancer` Service that k3s's ServiceLB binds on the node, **not** by `hostNetwork`: namespace `kirro` enforces Pod Security `baseline`, which rejects host namespaces and hostPorts outright, and the pod never scheduled until that was changed."
   firewall_rule: "tcp 7881 from 0.0.0.0/0 and ::/0 — opened 2026-10-02 with the voice channel. Public by design: any browser that can reach voice-kirro.upayan.dev must also reach the media path, and the caller's address is not knowable in advance. Authorisation is the signalling room token (a JWT signed with the key pair in the kirro-voice Secret, minted by the portal only for a signed-in user), not source-IP restriction."
-  ingress: direct to the node (hostNetwork) — NOT through Traefik
+  ingress: direct to the node via ServiceLB — NOT through Traefik
   auth: room join token (LiveKit JWT); the media port itself is unauthenticated at the packet level, as WebRTC requires
   temporary: false
   expires: null
@@ -407,14 +407,14 @@
 - port: 7882
   proto: udp
   service: kirro voice channel — LiveKit room server (WebRTC media)
-  k8s_service: kirro-livekit (hostNetwork; no Service fronts media)
+  k8s_service: kirro-livekit-media (LoadBalancer, externalTrafficPolicy Local)
   namespace: kirro
   owner: upayan (app owner)
   scope: public
   status: live
-  reason: "The primary WebRTC media path for the voice channel. A **single muxed UDP port** rather than LiveKit's default 50000-60000 range, set as `rtc.udp_port` in the app's ConfigMap — the whole reason the internet-facing surface of this feature is two ports instead of ten thousand. Same on-the-wire reasoning as 7881."
+  reason: "The primary WebRTC media path for the voice channel. A **single muxed UDP port** rather than LiveKit's default 50000-60000 range, set as `rtc.udp_port` in the app's ConfigMap — the whole reason the internet-facing surface of this feature is two ports instead of ten thousand. Same on-the-wire reasoning as 7881, including ServiceLB rather than hostNetwork."
   firewall_rule: "udp 7882 from 0.0.0.0/0 and ::/0 — opened 2026-10-02 with the voice channel. Public for the same reason as 7881: the browser's address is not predictable and media must reach the node directly. Same JWT-based authorisation."
-  ingress: direct to the node (hostNetwork) — NOT through Traefik
+  ingress: direct to the node via ServiceLB — NOT through Traefik
   auth: room join token (LiveKit JWT); the media port itself is unauthenticated at the packet level, as WebRTC requires
   temporary: false
   expires: null
