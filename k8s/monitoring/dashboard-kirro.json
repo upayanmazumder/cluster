@@ -1,0 +1,316 @@
+{
+  "title": "KIRRO (voice channel + agent)",
+  "uid": "kirro",
+  "tags": ["kirro", "voice", "loki"],
+  "schemaVersion": 38,
+  "editable": false,
+  "id": null,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "call_id",
+        "label": "call id",
+        "description": "Paste a call id from the portal (shown beside the transcript) or from the 'Recent calls' panel below. Empty = every KIRRO line.",
+        "type": "textbox",
+        "query": "",
+        "current": { "text": "", "value": "" },
+        "hide": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Calls started (1h)",
+      "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({filename=~\"/var/log/containers/.+_kirro_kirro-voice-.+\"} |= \"voice session started\" [1h]))",
+          "queryType": "instant",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Calls ended (1h)",
+      "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({filename=~\"/var/log/containers/.+_kirro_kirro-voice-.+\"} |= \"voice session ended\" [1h]))",
+          "queryType": "instant",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "AgenticOrg turns (1h)",
+      "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({filename=~\"/var/log/containers/.+_kirro_kirro-voice-.+\"} | json | message=\"agenticorg turn\" [1h]))",
+          "queryType": "instant",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Turn latency p95 (1h)",
+      "description": "AgenticOrg reply latency, from every turn's latency_ms.",
+      "gridPos": { "x": 12, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value" },
+      "fieldConfig": { "defaults": { "unit": "ms" } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "quantile_over_time(0.95, {filename=~\"/var/log/containers/.+_kirro_kirro-voice-.+\"} | json | message=\"agenticorg turn\" | unwrap latency_ms [1h])",
+          "queryType": "instant",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Pipeline errors (1h)",
+      "description": "Anything STT/LLM/TTS raised, as logged by the worker's session error handler.",
+      "gridPos": { "x": 16, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "fieldConfig": { "defaults": { "unit": "short", "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({filename=~\"/var/log/containers/.+_kirro_kirro-voice-.+\"} | json | message=\"pipeline error\" [1h]))",
+          "queryType": "instant",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Gnani TTS/STT errors (1h)",
+      "description": "The vendor failures that produced dead air on air: 'We are facing technical difficulties'.",
+      "gridPos": { "x": 20, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "fieldConfig": { "defaults": { "unit": "short", "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({filename=~\"/var/log/containers/.+_kirro_kirro-voice-.+\"} | json | stage=~\"tts_error|stt_error\" [1h]))",
+          "queryType": "instant",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "type": "logs",
+      "title": "Call log — filter with the call id box above",
+      "description": "One call, start to finish: the greeting, every turn (thread_id, latency_ms, redacted query/answer), any pipeline error, and the close reason.",
+      "gridPos": { "x": 0, "y": 4, "w": 24, "h": 14 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": { "showTime": true, "showLabels": false, "showCommonLabels": false, "wrapLines": true, "prettifyJson": true, "enableLogDetails": true, "sortOrder": "Descending" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{filename=~\"/var/log/containers/.+_kirro_.+\"} |= \"$call_id\"",
+          "queryType": "range",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "type": "logs",
+      "title": "Recent calls — copy an id into the box above",
+      "gridPos": { "x": 0, "y": 18, "w": 24, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": { "showTime": true, "showLabels": false, "showCommonLabels": false, "wrapLines": false, "prettifyJson": false, "enableLogDetails": true, "sortOrder": "Descending" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{filename=~\"/var/log/containers/.+_kirro_kirro-voice-.+\"} | json | message=\"voice session started\" | line_format \"{{.call_id}}  room={{.room}}\"",
+          "queryType": "range",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Calls started / ended",
+      "gridPos": { "x": 0, "y": 26, "w": 12, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 10 } } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({filename=~\"/var/log/containers/.+_kirro_kirro-voice-.+\"} |= \"voice session started\" [5m]))",
+          "queryType": "range",
+          "editorMode": "code",
+          "legendFormat": "started"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({filename=~\"/var/log/containers/.+_kirro_kirro-voice-.+\"} |= \"voice session ended\" [5m]))",
+          "queryType": "range",
+          "editorMode": "code",
+          "legendFormat": "ended"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Pipeline errors by stage",
+      "description": "A spike here is what the caller hears as silence or choppy audio.",
+      "gridPos": { "x": 12, "y": 26, "w": 12, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 10 } } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum by (stage) (count_over_time({filename=~\"/var/log/containers/.+_kirro_kirro-voice-.+\"} | json | message=\"pipeline error\" [5m]))",
+          "queryType": "range",
+          "editorMode": "code",
+          "legendFormat": "{{stage}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "AgenticOrg turn latency (p50 / p95)",
+      "gridPos": { "x": 0, "y": 34, "w": 12, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": { "defaults": { "unit": "ms", "custom": { "fillOpacity": 0 } } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "quantile_over_time(0.5, {filename=~\"/var/log/containers/.+_kirro_kirro-voice-.+\"} | json | message=\"agenticorg turn\" | unwrap latency_ms [5m])",
+          "queryType": "range",
+          "editorMode": "code",
+          "legendFormat": "p50"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "quantile_over_time(0.95, {filename=~\"/var/log/containers/.+_kirro_kirro-voice-.+\"} | json | message=\"agenticorg turn\" | unwrap latency_ms [5m])",
+          "queryType": "range",
+          "editorMode": "code",
+          "legendFormat": "p95"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Turns per minute",
+      "gridPos": { "x": 12, "y": 34, "w": 12, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 10 } } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({filename=~\"/var/log/containers/.+_kirro_kirro-voice-.+\"} | json | message=\"agenticorg turn\" [1m]))",
+          "queryType": "range",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "kirro pod CPU",
+      "description": "The worker's CPU ceiling is load-bearing: at 500m it was throttled ~18% of periods and callers heard choppy audio.",
+      "gridPos": { "x": 0, "y": 42, "w": 8, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "cores", "custom": { "fillOpacity": 10 } } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"kirro\", container!=\"\", container!=\"POD\"}[5m]))",
+          "queryType": "range",
+          "editorMode": "code",
+          "legendFormat": "{{pod}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "kirro pod memory",
+      "gridPos": { "x": 8, "y": 42, "w": 8, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "bytes", "custom": { "fillOpacity": 10 } } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"kirro\", container!=\"\", container!=\"POD\"})",
+          "queryType": "range",
+          "editorMode": "code",
+          "legendFormat": "{{pod}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "kirro pod restarts",
+      "description": "A restart mid-call drops it; the session log's close reason says participant_disconnected.",
+      "gridPos": { "x": 16, "y": 42, "w": 8, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 10 } } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (pod) (kube_pod_container_status_restarts_total{namespace=\"kirro\"})",
+          "queryType": "range",
+          "editorMode": "code",
+          "legendFormat": "{{pod}}"
+        }
+      ]
+    },
+    {
+      "type": "logs",
+      "title": "All KIRRO logs (no filter)",
+      "gridPos": { "x": 0, "y": 50, "w": 24, "h": 10 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": { "showTime": true, "showLabels": true, "showCommonLabels": false, "wrapLines": true, "prettifyJson": true, "enableLogDetails": true, "sortOrder": "Descending" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{filename=~\"/var/log/containers/.+_kirro_.+\"}",
+          "queryType": "range",
+          "editorMode": "code"
+        }
+      ]
+    }
+  ]
+}

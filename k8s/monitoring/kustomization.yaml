@@ -53,6 +53,7 @@ configMapGenerator:
       - dashboard-kubernetes.json
       - dashboard-loki.json
       - dashboard-argocd.json
+      - dashboard-kirro.json
       - dashboard-vcap-dev.json
       - dashboard-vcap-staging.json
       - dashboard-vcap-metrics.json
