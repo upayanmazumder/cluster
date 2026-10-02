@@ -67,19 +67,10 @@ data:
         # Parse CRI log format (timestamp, stream-type, flags, message)
         - cri: {}
 
-    # The KIRRO mock's *request* log (Cheetos-gif/kirro, ADR-013/ADR-017). It is written to a file
-    # on the mock's PVC rather than to stdout, so pod log discovery never sees it — and it is the
-    # record of every connector call the AgenticOrg agent made, which makes it the one log that
-    # matters when a booking goes wrong.
-    #
-    # That PVC is ReadWriteOnce on the single node this cluster runs on, so mounting it read-only
-    # here is safe. No `cri` stage: these lines are already-structured JSON, not CRI-framed.
-    - job_name: kirro-mock-requests
-      static_configs:
-        - targets: [localhost]
-          labels:
-            __path__: /kirro-logs/mock/*.jsonl
-            namespace: kirro
-            pod: kirro-mock
-            container: kirro-mock
-            log_type: mock-request
+    # NOTE: the KIRRO mock's *request* log is deliberately not scraped here. It is written to a
+    # file on the mock's PVC (`kirro-mock-data`), and a volume reference is namespace-scoped — a pod
+    # in `monitoring` cannot mount a claim from `kirro`. Doing it from that side means a promtail in
+    # the kirro namespace (a second log agent for one file), or a hostPath to the provisioner's
+    # generated PV directory (brittle: the path carries the claim's UUID and changes on recreation).
+    # Neither is worth it. The mock will emit the same records to stdout instead, where pod-log
+    # discovery already picks them up (Cheetos-gif/kirro).

@@ -36,11 +36,6 @@ spec:
               mountPath: /var/log/pods
             - name: varlibdocker
               mountPath: /var/lib/docker
-            # The KIRRO mock's request log, read-only: it lives on a PVC, not in /var/log
-            # (k8s/apps/kirro/ is in the app repo; the claim is created there).
-            - name: kirro-mock-logs
-              mountPath: /kirro-logs
-              readOnly: true
       volumes:
         - name: config
           configMap:
@@ -57,6 +52,3 @@ spec:
         - name: varlibdocker
           hostPath:
             path: /var/lib/docker
-        - name: kirro-mock-logs
-          persistentVolumeClaim:
-            claimName: kirro-mock-data
