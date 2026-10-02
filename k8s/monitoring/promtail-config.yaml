@@ -16,24 +16,70 @@ data:
       filename: /tmp/positions.yaml
 
     scrape_configs:
+
+    # Every pod's stdout, discovered from the API rather than by globbing the log directory.
+    #
+    # This used to be `static_configs` + `__path__: /var/log/containers/*.log`, with pipeline
+    # stages that tried to pull the pod, namespace and container back out of the filename. Those
+    # stages could never work — measured, Loki held only `filename` and `stream`, so every
+    # dashboard in this repo queries `{filename=~"..._<namespace>_..."}` instead of the labels it
+    # should:
+    #
+    #   * the `regex` stage reads only the *extracted* map, never the label set
+    #     (`Process(_ model.LabelSet, extracted map[string]interface{}, ...)`), so
+    #     `source: filename` or `source: _path` finds nothing;
+    #   * the `template` stage builds its context from the extracted map plus `.Entry`
+    #     (`template.go`, `Process`) — there is no `.Labels` for `{{ index .Labels "filename" }}`
+    #     to read, so that expression could not resolve either.
+    #
+    # Kubernetes service discovery is the supported way to get these labels. The RBAC was already
+    # there (`promtail-cluster-role` grants pods/nodes/namespaces/endpoints).
     - job_name: kubernetes-pods
-      static_configs:
-        - targets: [localhost]
-          labels:
-            __path__: /var/log/containers/*.log
+      kubernetes_sd_configs:
+        - role: pod
+      relabel_configs:
+        # Pending pods have no logs yet; Failed/Unknown are gone by the time this runs.
+        - source_labels: [__meta_kubernetes_pod_phase]
+          regex: Running|Succeeded
+          action: keep
+        # <pod>_<namespace>_<container> is exactly the stem of the /var/log/containers filename, so
+        # `__path__` resolves to the same files the static glob used to match. That matters: the
+        # `filename` label is added by the *tailer* from the real path (`tailer.go`), independently
+        # of how the target was discovered, so keeping this shape keeps every existing
+        # `filename=~` query — dashboard-loki.json, vcap-logs.json — working unchanged.
+        - source_labels:
+            - __meta_kubernetes_pod_name
+            - __meta_kubernetes_namespace
+            - __meta_kubernetes_pod_container_name
+          separator: '_'
+          target_label: __path__
+          replacement: /var/log/containers/$1-*.log
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+        - source_labels: [__meta_kubernetes_pod_name]
+          target_label: pod
+        - source_labels: [__meta_kubernetes_pod_container_name]
+          target_label: container
+        # app.kubernetes.io/name etc., when a workload sets them.
+        - action: labelmap
+          regex: __meta_kubernetes_pod_label_(.+)
       pipeline_stages:
         # Parse CRI log format (timestamp, stream-type, flags, message)
         - cri: {}
-        # filename stream label = /var/log/containers/<pod>_<namespace>_<container>-<64hex>.log
-        # pipeline regex 'source' reads extracted values, not stream labels; use
-        # index function to copy filename stream label into extracted values first.
-        - template:
-            source: _path
-            template: '{{ index .Labels "filename" }}'
-        - regex:
-            source: _path
-            expression: '/var/log/containers/(?P<pod>[^_]+)_(?P<namespace>[^_]+)_(?P<container>.+)-[0-9a-f]{64}\.log$'
-        - labels:
-            namespace:
-            pod:
-            container:
+
+    # The KIRRO mock's *request* log (Cheetos-gif/kirro, ADR-013/ADR-017). It is written to a file
+    # on the mock's PVC rather than to stdout, so pod log discovery never sees it — and it is the
+    # record of every connector call the AgenticOrg agent made, which makes it the one log that
+    # matters when a booking goes wrong.
+    #
+    # That PVC is ReadWriteOnce on the single node this cluster runs on, so mounting it read-only
+    # here is safe. No `cri` stage: these lines are already-structured JSON, not CRI-framed.
+    - job_name: kirro-mock-requests
+      static_configs:
+        - targets: [localhost]
+          labels:
+            __path__: /kirro-logs/mock/*.jsonl
+            namespace: kirro
+            pod: kirro-mock
+            container: kirro-mock
+            log_type: mock-request
