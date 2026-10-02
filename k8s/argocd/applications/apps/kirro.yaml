@@ -16,10 +16,17 @@ metadata:
     argocd.argoproj.io/sync-options: Delete=false,Prune=false
 spec:
   project: apps
-  source:
-    repoURL: https://github.com/Cheetos-gif/kirro
-    targetRevision: main
-    path: k8s
+  sources:
+    # The app's own manifests: the mock, the LiveKit room server and the voice worker.
+    - repoURL: https://github.com/Cheetos-gif/kirro
+      targetRevision: main
+      path: k8s
+    # The voice channel's credentials. A second source because that repo is **public**, so its
+    # Secret cannot be committed there; this directory is in this private repo and SOPS-encrypted
+    # through ksops. Same shape and same reasoning as the vcap Secrets (SEC-003).
+    - repoURL: https://github.com/upayanmazumder/cluster
+      targetRevision: main
+      path: k8s/apps/kirro/secrets
   destination:
     server: https://kubernetes.default.svc
     namespace: kirro
