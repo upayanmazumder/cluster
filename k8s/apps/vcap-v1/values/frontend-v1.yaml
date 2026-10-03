@@ -1,0 +1,38 @@
+# ── VCAP v1 Frontend — vcap-v1 ────────────────────────────────────────────────
+# Chart: github.com/upayanmazumder-DevLabs/vcap-frontend-v1 k8s/chart (vcap-frontend-v1)
+# Namespace: vcap-v1  |  Cluster: Hetzner k3s
+# Ingress: vcap.upayan.dev → web (TLS via Traefik TLSStore/default)
+#
+# Release name is the Application name (`vcap-frontend-v1`), so the chart's
+# `vcap.fullname` resolves to that and the Service is `vcap-frontend-v1-web`.
+# ─────────────────────────────────────────────────────────────────────────────
+
+hosts:
+  web: vcap.upayan.dev
+
+nodeAffinity:
+  enabled: true
+  hostname: vps
+
+existingSecrets:
+  # ghcr.io/upayanmazumder-devlabs/vcap-frontend-v1 is a private package.
+  imagePull: pull-secret
+
+# The backend Service this frontend's server-side BFF proxy
+# (src/app/api/[...path]/route.ts) forwards /api/* to. Derived from the
+# backend chart's release name — see backend-v1.yaml's header for why both are
+# pinned to their Application names.
+backend:
+  apiSvcHost: vcap-backend-v1-api
+  apiPort: 8000
+
+ingress:
+  enabled: true
+  className: traefik
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+  tls:
+    mode: traefik-default
+
+pdb:
+  enabled: false

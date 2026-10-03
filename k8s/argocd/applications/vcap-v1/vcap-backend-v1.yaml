@@ -1,0 +1,81 @@
+# vcap-backend-v1 — v1 (devlabs fork) api + worker + auth + postgres + redis.
+#
+# The replacement for v2 (`vcap-backend-dev` / `vcap-backend-staging`), which
+# are paused — deployments scaled to 0, Ingress removed, `syncPolicy.automated`
+# stripped — but NOT deleted: their Applications, Services, Secrets, PVCs and
+# Postgres data (static PVs on /srv/data/vcap-{dev,staging}) all stay in place
+# so v2 can be brought back unchanged. See changelog/2026-10.md (V1-CUTOVER).
+#
+# Chart source: upayanmazumder-DevLabs/vcap-backend-v1 k8s/chart (the devlabs
+# fork — never scopeapp2026, per the owner's standing instruction).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vcap-backend-v1
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+    # Image Updater tracks the two v1 backend images. The write-back commits
+    # land in the DevLabs fork's main as `noodle <noodle@upayan.dev>`.
+    argocd-image-updater.argoproj.io/write-back-method: git:secret:argocd/git-creds
+    argocd-image-updater.argoproj.io/git-branch: main
+    argocd-image-updater.argoproj.io/git-repository: https://github.com/upayanmazumder-DevLabs/vcap-backend-v1
+    argocd-image-updater.argoproj.io/image-list: >-
+      api=ghcr.io/upayanmazumder-devlabs/vcap-backend-v1,
+      worker=ghcr.io/upayanmazumder-devlabs/vcap-backend-v1,
+      auth=ghcr.io/upayanmazumder-devlabs/vcap-backend-v1-auth
+    argocd-image-updater.argoproj.io/api.update-strategy: digest
+    argocd-image-updater.argoproj.io/worker.update-strategy: digest
+    argocd-image-updater.argoproj.io/auth.update-strategy: digest
+    argocd-image-updater.argoproj.io/api.helm.image-name: images.api.repository
+    argocd-image-updater.argoproj.io/api.helm.image-tag: images.api.tag
+    argocd-image-updater.argoproj.io/worker.helm.image-name: images.worker.repository
+    argocd-image-updater.argoproj.io/worker.helm.image-tag: images.worker.tag
+    argocd-image-updater.argoproj.io/auth.helm.image-name: images.auth.repository
+    argocd-image-updater.argoproj.io/auth.helm.image-tag: images.auth.tag
+spec:
+  project: vcap
+  sources:
+    - repoURL: https://github.com/upayanmazumder-DevLabs/vcap-backend-v1
+      path: k8s/chart
+      targetRevision: main
+      helm:
+        releaseName: vcap-backend-v1
+        valueFiles:
+          - $values/k8s/apps/vcap-v1/values/backend-v1.yaml
+    - repoURL: https://github.com/upayanmazumder/cluster
+      targetRevision: main
+      ref: values
+    # The backend-env / auth-env / pull-secret Secrets, SOPS-encrypted and
+    # emitted by ksops — a separate source for the same reason the v2
+    # Applications use one (a Helm-sourced chart and a ksops generator cannot
+    # share a single kustomize build). Same mechanism, new namespace.
+    - repoURL: https://github.com/upayanmazumder/cluster
+      targetRevision: main
+      path: k8s/apps/vcap-v1/secrets
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vcap-v1
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+  ignoreDifferences:
+    # KEDA writes /spec/replicas directly on the worker; the api HPA does the
+    # same on its Deployment. Same exemption the v2 Applications carry.
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+    # The Postgres PVC binds to the hand-provisioned static PV
+    # (vcap-v1-postgres-data-vps) through a volumeName/storageClassName the
+    # rendered chart cannot know — immutable once bound, so without this every
+    # reconcile is a permanent OutOfSync. Same fix, same reason as v2's S8.
+    - kind: PersistentVolumeClaim
+      name: vcap-backend-v1-postgres-data
+      jsonPointers:
+        - /spec/volumeName
+        - /spec/storageClassName

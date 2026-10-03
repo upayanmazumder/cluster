@@ -1,0 +1,51 @@
+# vcap-frontend-v1 — v1 (devlabs fork) Next.js web app at vcap.upayan.dev.
+#
+# The replacement for v2's `vcap-frontend-staging`, which is paused with the
+# rest of v2 (see vcap-backend-v1.yaml's header and changelog/2026-10.md).
+#
+# Chart source: upayanmazumder-DevLabs/vcap-frontend-v1 k8s/chart — the devlabs
+# fork, which carries ~40 commits (admin workspace, cookie-backed auth session,
+# role routing) that scopeapp2026's main does not.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vcap-frontend-v1
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+    argocd-image-updater.argoproj.io/write-back-method: git:secret:argocd/git-creds
+    argocd-image-updater.argoproj.io/git-branch: main
+    argocd-image-updater.argoproj.io/git-repository: https://github.com/upayanmazumder-DevLabs/vcap-frontend-v1
+    argocd-image-updater.argoproj.io/image-list: >-
+      web=ghcr.io/upayanmazumder-devlabs/vcap-frontend-v1
+    argocd-image-updater.argoproj.io/web.update-strategy: digest
+    argocd-image-updater.argoproj.io/web.helm.image-name: images.web.repository
+    argocd-image-updater.argoproj.io/web.helm.image-tag: images.web.tag
+spec:
+  project: vcap
+  sources:
+    - repoURL: https://github.com/upayanmazumder-DevLabs/vcap-frontend-v1
+      path: k8s/chart
+      targetRevision: main
+      helm:
+        releaseName: vcap-frontend-v1
+        valueFiles:
+          - $values/k8s/apps/vcap-v1/values/frontend-v1.yaml
+    - repoURL: https://github.com/upayanmazumder/cluster
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vcap-v1
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas

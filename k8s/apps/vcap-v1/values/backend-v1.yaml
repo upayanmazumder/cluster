@@ -1,0 +1,62 @@
+# ── VCAP v1 Backend — vcap-v1 ─────────────────────────────────────────────────
+# Chart: github.com/upayanmazumder-DevLabs/vcap-backend-v1 k8s/chart (vcap-backend-v1)
+# Namespace: vcap-v1  |  Cluster: Hetzner k3s
+#
+# This is v1 running in place of v2, which is paused (deployments scaled to 0,
+# Ingress removed) but NOT deleted — see k8s/argocd/applications/vcap/*.yaml
+# and changelog/2026-10.md (V1-CUTOVER). v2's Postgres data on
+# /srv/data/vcap-{dev,staging} is untouched; v1 gets its own directory and PV.
+#
+# Release name is the Application name (`vcap-backend-v1`) so the chart's
+# `vcap.fullname` resolves to exactly that, making the Services
+# `vcap-backend-v1-{api,auth,postgres,redis}` — the names the SOPS Secrets in
+# k8s/apps/vcap-v1/secrets/ point at, and the name the frontend chart's
+# backend.apiSvcHost resolves to.
+# ─────────────────────────────────────────────────────────────────────────────
+
+hosts:
+  # v1 takes over the hostnames v2 served until it was paused.
+  api: api-vcap.upayan.dev
+  web: vcap.upayan.dev
+
+nodeAffinity:
+  enabled: true
+  hostname: vps
+
+# The chart renders no Secret values itself — k8s/apps/vcap-v1/secrets/
+# (SOPS + ksops, a source of this Application) provides `backend-env`,
+# `auth-env` and the GHCR `pull-secret`. The images are private packages under
+# upayanmazumder-devlabs, so the pull secret is required.
+existingSecrets:
+  backend: backend-env
+  auth: auth-env
+  imagePull: pull-secret
+
+postgres:
+  enabled: true
+  storage: 10Gi
+  # "" binds to the hand-provisioned static PV `vcap-v1-postgres-data-vps`
+  # (k8s/platform/storage/persistentvolumes.yaml) on the node's `vps-data`
+  # volume at /srv/data/vcap-v1-postgres — created fresh for v1, deliberately
+  # NOT a reuse of v2's directories. Empty class = static provisioning; the
+  # dynamic local-path default would silently put the data on the root disk.
+  storageClassName: ""
+
+storage:
+  # Shared api+worker scratch/artifacts PVC, dynamically provisioned on the
+  # cluster default StorageClass (local-path). No S3 backend in v1.
+  dataPvcSize: 10Gi
+
+ingress:
+  enabled: true
+  className: traefik
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+  tls:
+    mode: traefik-default
+
+networkPolicy:
+  enabled: true
+
+pdb:
+  enabled: false
