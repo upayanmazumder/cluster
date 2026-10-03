@@ -2,11 +2,17 @@
 # live in the app's own repo (github.com/Cheetos-gif/kirro, k8s/), not under k8s/apps/ in this
 # repo, which the set's template cannot express (repoURL is hardcoded to this repo there).
 #
-# No argocd-image-updater annotations: the write-back credential (`argocd/git-creds-updater`)
-# only has push access to this repo, not Cheetos-gif/kirro, where the image-pinning
-# kustomization.yaml would need to live. Deploys track `:latest` (imagePullPolicy: Always) and a
-# new image push needs a manual rollout restart:
-#   kubectl -n kirro rollout restart deploy/kirro-core deploy/kirro-mock
+# Image automation (2026-10-03): digest tracking on the mutable `latest` tag, same pattern as the
+# rest of the cluster, with the resolved digest written back to **that repo's**
+# k8s/kustomization.yaml -- the one ArgoCD actually renders. The write-back credential is
+# `argocd/git-creds-noodle`, a deploy key scoped to Cheetos-gif/kirro alone; `git-creds-updater`
+# cannot be reused because a deploy key is per-repository. `write-back-target` names the kustomize
+# directory explicitly, since this Application has two sources and the updater would otherwise have
+# to guess which one to write into.
+#
+# Before this, the pin could not live in git at all (the old note here explained why), so a new
+# image needed `kubectl -n kirro rollout restart`; the digest write-back replaces that. The
+# `latest` tag stays in the app repo's kustomization only as the pre-first-write-back fallback.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -14,6 +20,13 @@ metadata:
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-options: Delete=false,Prune=false
+    argocd-image-updater.argoproj.io/image-list: "kirro=ghcr.io/cheetos-gif/kirro:latest"
+    argocd-image-updater.argoproj.io/kirro.update-strategy: digest
+    argocd-image-updater.argoproj.io/kirro.kustomize.image-name: ghcr.io/cheetos-gif/kirro
+    argocd-image-updater.argoproj.io/write-back-method: "git:secret:argocd/git-creds-noodle"
+    argocd-image-updater.argoproj.io/write-back-target: "kustomize:/k8s"
+    argocd-image-updater.argoproj.io/git-branch: main
+    argocd-image-updater.argoproj.io/git-repository: git@github.com:Cheetos-gif/kirro.git
 spec:
   project: apps
   sources:
