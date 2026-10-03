@@ -39,8 +39,16 @@ config:
       default: true
   logLevel: info
   disableKubeEvents: false
-  gitCommitUser: argocd-image-updater
-  gitCommitMail: image-updater@upayan.dev
+  # BOT-001 (2026-10-03): renamed from `argocd-image-updater
+  # <image-updater@upayan.dev>`. The write-back bot is `noodle` now — its
+  # `build: automatic update of <app>` commits are still the intended
+  # write-back (README.md line ~12), only the author changed. GitHub renders
+  # the author avatar from a Gravatar lookup on this address, so the Noodle
+  # mascot appears next to those commits once `noodle@upayan.dev` is
+  # registered as a Gravatar; the neutral default is `happy`
+  # (docs/assets/noodle/README.md maps the rest).
+  gitCommitUser: noodle
+  gitCommitMail: noodle@upayan.dev
 resources:
   requests:
     cpu: 25m
