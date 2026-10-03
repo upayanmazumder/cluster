@@ -11,8 +11,9 @@ reconciles it automatically — so **the git tree is the live cluster state**.
 > `vps` repository it is exported from is retired to an archive. Both carry the same content, so
 > read either one. A background job, `argocd-image-updater`, commits resolved image digests back to
 > `main` as `build: automatic update of <app>` commits authored by
-> `argocd-image-updater <image-updater@upayan.dev>` — those are the intended write-back and should
-> not be reverted.
+> `noodle <noodle@upayan.dev>` (renamed 2026-10-03 from `argocd-image-updater
+> <image-updater@upayan.dev>`; see `docs/assets/noodle/README.md`) — those are the intended
+> write-back and should not be reverted.
 
 ## Architecture
 
