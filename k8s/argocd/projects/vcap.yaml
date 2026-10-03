@@ -13,6 +13,11 @@ spec:
     - https://github.com/upayanmazumder/cluster
     - https://github.com/vitscopesoftwareteam/VCAP-STAGING-BACKEND
     - https://github.com/vitscopesoftwareteam/VCAP-STAGING-FRONTEND
+    # V1-CUTOVER (2026-10-03): v1's charts live in the DevLabs forks, not the
+    # scopeapp2026 repos the v2 charts come from. Added deliberately and
+    # narrowly — the two forks only, not a wildcard.
+    - https://github.com/upayanmazumder-DevLabs/vcap-backend-v1
+    - https://github.com/upayanmazumder-DevLabs/vcap-frontend-v1
   # S11: destinations enumerated instead of `namespace: "*"`. Adding an app
   # means adding its namespace here too; a mismatch fails loudly ("namespace
   # X is not permitted in project vcap") rather than deploying anywhere.
@@ -21,6 +26,11 @@ spec:
       namespace: vcap-dev
     - server: https://kubernetes.default.svc
       namespace: vcap-staging
+    # V1-CUTOVER (2026-10-03): v1's own namespace. v2 keeps vcap-dev/vcap-staging
+    # (paused, not deleted) so its data and resource names stay put for its
+    # eventual redeploy.
+    - server: https://kubernetes.default.svc
+      namespace: vcap-v1
   # ESC-001 / VCAP-002 (2026-09-29): this project granted `Namespace`,
   # `ClusterRole`, `ClusterRoleBinding` and all of `keda.sh/*` at cluster
   # scope, and every namespaced kind via `group: "*" / kind: "*"`. Together

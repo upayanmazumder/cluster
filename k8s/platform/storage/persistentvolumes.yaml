@@ -61,6 +61,36 @@ spec:
               operator: In
               values: ["vps"]
 ---
+# V1-CUTOVER (2026-10-03): v1's own Postgres data directory, created fresh at
+# `/srv/data/vcap-v1-postgres` (same `root:lxd`/`2775` ownership as the two PVs
+# above, verified on the node before this PV was declared). Deliberately a
+# NEW directory, not a reuse of `/srv/data/vcap-staging` or `/srv/data/vcap-dev`
+# — v1's schema (`latex_capstone`) is unrelated to v2's, there is no migration,
+# and v2's data must stay exactly as it is for its own eventual redeploy.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: vcap-v1-postgres-data-vps
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes: [ReadWriteOnce]
+  volumeMode: Filesystem
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  hostPath:
+    path: /srv/data/vcap-v1-postgres
+    type: Directory
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: ["vps"]
+---
 # P3-M2: Adhigrahan Radar's store, the third static PV on `vps-data`.
 #
 # Declared here rather than in the tenant repository for the same reason the two PVs above are:

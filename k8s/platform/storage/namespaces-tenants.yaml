@@ -42,6 +42,24 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-options: Delete=false,Prune=false
 ---
+# V1-CUTOVER (2026-10-03): v1 (devlabs forks of vcap-backend-v1/vcap-frontend-v1)
+# deployed alongside vcap-staging/vcap-dev while v2 is paused (see
+# k8s/argocd/applications/vcap/*.yaml). Separate namespace, not a reuse of
+# vcap-staging, so v1's Secrets/PVCs/NetworkPolicy can never collide with or
+# accidentally select v2's — v2's data stays exactly as it was. `baseline`
+# (not `restricted`) because the backend container's entrypoint starts as
+# root to chown its PVC mounts before dropping to `gosu appuser` — the same
+# CHOWN/SETUID/SETGID/DAC_OVERRIDE need as adhigrahan-radar's nginx, above.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vcap-v1
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+---
 # P3-M4 (OD-4): the same boundary for the replacement application, now on the `radar.upayan.dev`
 # hostnames (renamed 2026-09-30 from `meghmitra`/`meghmitra.upayan.dev`; the previous `meghmitra`
 # Namespace object is left live and unmanaged here on purpose - Delete=false,Prune=false protects
