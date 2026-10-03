@@ -43,6 +43,12 @@ spec:
       namespace: vcap-dev
     - server: https://kubernetes.default.svc
       namespace: vcap-staging
+    # V1-CUTOVER (2026-10-03): v1's namespace, for the same reason and nothing
+    # else — the `vcap-pg` TLSOption that `vcap-v1`'s Postgres edge needs.
+    # A TLSOption is namespaced and the `vcap` project deliberately denies the
+    # kind, so it is cluster-owned and applied from here.
+    - server: https://kubernetes.default.svc
+      namespace: vcap-v1
   # S11: was `group: "*" / kind: "*"`. Now exactly the cluster-scoped kinds
   # the platform apps actually manage, taken from their live resource
   # inventories on 2026-09-28. Anything new must be added deliberately --
