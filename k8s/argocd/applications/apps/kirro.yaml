@@ -6,9 +6,11 @@
 # rest of the cluster, with the resolved digest written back to **that repo's**
 # k8s/kustomization.yaml -- the one ArgoCD actually renders. The write-back credential is
 # `argocd/git-creds-noodle`, a deploy key scoped to Cheetos-gif/kirro alone; `git-creds-updater`
-# cannot be reused because a deploy key is per-repository. `write-back-target` names the kustomize
+# cannot be reused because a deploy key is per-repository. `write-back-target` names the kustomization
 # directory explicitly, since this Application has two sources and the updater would otherwise have
-# to guess which one to write into.
+# to guess which one to write into. The keyword is `kustomization`, not `kustomize`: an unrecognised
+# value is taken as a plain file path, which on 2026-10-03 produced a commit that added a file
+# literally named `kustomize:/k8s` instead of pinning the digest.
 #
 # Before this, the pin could not live in git at all (the old note here explained why), so a new
 # image needed `kubectl -n kirro rollout restart`; the digest write-back replaces that. The
@@ -24,7 +26,7 @@ metadata:
     argocd-image-updater.argoproj.io/kirro.update-strategy: digest
     argocd-image-updater.argoproj.io/kirro.kustomize.image-name: ghcr.io/cheetos-gif/kirro
     argocd-image-updater.argoproj.io/write-back-method: "git:secret:argocd/git-creds-noodle"
-    argocd-image-updater.argoproj.io/write-back-target: "kustomize:/k8s"
+    argocd-image-updater.argoproj.io/write-back-target: "kustomization:/k8s"
     argocd-image-updater.argoproj.io/git-branch: main
     argocd-image-updater.argoproj.io/git-repository: git@github.com:Cheetos-gif/kirro.git
 spec:
