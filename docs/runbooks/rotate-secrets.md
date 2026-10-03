@@ -76,13 +76,14 @@ the leaked one.
 | Secret | Lives | Consumed by |
 |---|---|---|
 | `argocd-repo-vps`, `repo-vcap-backend`, `repo-vcap-frontend`, `git-creds` | `k8s/platform/argocd/secret/secrets.sops.yaml` | ArgoCD's repo access and image-updater's git write-back |
+| `git-creds-updater`, `git-creds-noodle` | `k8s/platform/argocd-image-updater/secrets.sops.yaml`, `.../noodle/secrets.sops.yaml` | image-updater's git write-back, one write deploy key per repository it commits to |
 | `bitvault-ghcr-pull` | `k8s/apps/bitvault/secrets.sops.yaml` | bitvault pod image pulls |
 | `ghcr-creds` | **not in git** (live Secret only, 97d old) | `argocd-image-updater`, and it is currently **dead** (GitHub returns `401`) |
 | `GITHUB_TOKEN` | `k8s/apps/kodesphere/secrets.sops.yaml`, `k8s/apps/upayan-web/secrets.sops.yaml` | those apps' own API calls |
 
 - **Rotate:** mint the replacement (a classic PAT with `read:packages` for registry reads; read-only
   deploy keys per repo for ArgoCD; a fine-grained PAT limited to the repos image-updater writes, for
-  `git-creds`). The plan's target is per-repo deploy keys rather than one reused `gho_` token.
+  `git-creds`). The plan's target is per-repo deploy keys rather than one reused `gho_` token — in progress: `git-creds-updater` (this repo) and `git-creds-noodle` (`Cheetos-gif/kirro`) are both deploy keys, so the image updater no longer depends on a `gho_` token at all.
 - **Verify:** for the ArgoCD repo credentials specifically, force a reconcile of an Application that
   uses that repo and confirm it reaches `Synced` with no `ComparisonError: failed to get git client`
   — this is the chicken-and-egg described in [`recover-vm.md`](recover-vm.md), and the reason to keep

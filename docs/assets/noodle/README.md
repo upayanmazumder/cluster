@@ -35,7 +35,9 @@ and the caption set) — kept for re-cropping, not for use as an icon.
   the `noodle` identity (already done) and register the image you want as the
   Gravatar for `noodle@upayan.dev`. GitHub resolves it from the email; no API
   can set it for an arbitrary address, so the upload is a manual step.
-  `happy.png` is the neutral default for that.
+  `happy.png` is the neutral default for that, and `noodle-pfp.png` (470x470 —
+  the sheet's own portrait at full resolution, where the mood crops are only
+  220x220) is the same face sized for that upload.
 - **Docs and runbooks.** Reference the specific variant that matches the state
   being described, e.g. `![grumpy](assets/noodle/grumpy.png)` in a degraded-path
   runbook, rather than one generic mascot everywhere.

@@ -118,6 +118,7 @@ anywhere, public or private.
 | Per-person Postgres role passwords | owner's password-manager share per person | in Postgres only | yes (P2-08) | never |
 | Tailscale auth key | no (one-off) | consumed at join | per rebuild: ephemeral, pre-authorised, revoked after join | never |
 | ArgoCD GitHub credential and `git-creds` | via SOPS | in-cluster | no | SOPS `k8s/platform/argocd/secret/secrets.sops.yaml` |
+| image-updater write-back keys (`git-creds-updater`, `git-creds-noodle`) | via SOPS | in-cluster | no | SOPS `k8s/platform/argocd-image-updater/secrets.sops.yaml`, `.../noodle/secrets.sops.yaml` |
 | `argocd-secret`, GHCR pull secrets, Origin CA TLS, app Secrets | via SOPS | in-cluster | no | SOPS |
 | k3s server token + CA | inside restic `etcd` snapshots | `/var/lib/rancher/k3s/server` | yes (no-etcd path) | never |
 
