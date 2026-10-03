@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: vcap-v1
+resources:
+  - ingressroutetcp.yaml
+  - networkpolicy.yaml
+# The edge's TLS material, SOPS-encrypted via ksops. It lives here rather than
+# in the tenant's Secret set because it belongs to the edge, not the app: the
+# leaf is a cluster-side control, and — unlike v2's — is signed by its own CA
+# rather than the cluster's Postgres edge CA (see secrets.sops.yaml).
+generators:
+  - secret-generator.yaml

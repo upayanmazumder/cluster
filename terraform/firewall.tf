@@ -99,6 +99,18 @@ resource "hcloud_firewall" "vps" {
     port       = "15433"
     source_ips = ["0.0.0.0/0", "::/0"]
   }
+  # V1-CUTOVER (2026-10-03): v1's public Postgres edge (`vcap-pg-v1`,
+  # k8s/platform/traefik/traefik-config.yaml), owner-requested so v1's database
+  # is reachable directly without Cloudflare Access. TLS-required by the router
+  # (its own CA — see k8s/apps/vcap-v1/edge/secrets.sops.yaml), same shape as
+  # the two rules above. Registered in inventory/ports.yaml, which
+  # scripts/check-ports.py cross-checks against this file.
+  rule {
+    direction  = "in"
+    protocol   = "tcp"
+    port       = "15434"
+    source_ips = ["0.0.0.0/0", "::/0"]
+  }
   # The `kirro` voice channel's WebRTC media (2026-10-02). LiveKit's self-hosted room server
   # (k8s/apps parity: the manifests live in Cheetos-gif/kirro, namespace `kirro`) carries browser
   # audio, and media **cannot** go through Traefik or any Kubernetes Ingress -- only the signalling

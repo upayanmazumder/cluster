@@ -5,3 +5,7 @@ kind: Kustomization
 resources:
   - vcap-pg-dev.yaml
   - vcap-pg-staging.yaml
+  # V1-CUTOVER (2026-10-03): v1's own namespace needs its own copy — a
+  # TLSOption is namespaced and an IngressRouteTCP can only reference one in its
+  # own namespace.
+  - vcap-pg-v1.yaml

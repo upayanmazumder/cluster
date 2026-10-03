@@ -53,6 +53,13 @@ spec:
     - repoURL: https://github.com/upayanmazumder/cluster
       targetRevision: main
       path: k8s/apps/vcap-v1/secrets
+    # V1-CUTOVER (2026-10-03): the public Postgres edge — the IngressRouteTCP
+    # on the `vcap-pg-v1` entrypoint, its TLS material, and the additive
+    # NetworkPolicy that admits Traefik (the tenant's own Postgres policy is
+    # same-namespace only, by design). Same shape as v2's edge source.
+    - repoURL: https://github.com/upayanmazumder/cluster
+      targetRevision: main
+      path: k8s/apps/vcap-v1/edge
   destination:
     server: https://kubernetes.default.svc
     namespace: vcap-v1

@@ -1,0 +1,33 @@
+# V1-CUTOVER (2026-10-03): the one thing the tenant's own Postgres NetworkPolicy
+# cannot express — an ingress from the ingress controller. That policy admits
+# same-namespace pods only (correct for everything except this deliberate edge),
+# and NetworkPolicies are **additive**, so this unions with it rather than
+# replacing it. Nothing else gains access.
+#
+# Deliberately narrow: `kube-system` + the Traefik pod label + tcp/5432 on the
+# Postgres pods of exactly this release. Same shape as v2's edge policy.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: vcap-v1-postgres-edge
+  namespace: vcap-v1
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: vcap-backend-v1
+      app.kubernetes.io/component: postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: traefik
+      ports:
+        - protocol: TCP
+          port: 5432

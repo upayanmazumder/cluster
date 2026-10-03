@@ -154,6 +154,22 @@
   expires: null
 
 
+- port: 15434
+  proto: tcp
+  service: vcap-v1 postgres (v1's public path, owner-requested 2026-10-03)
+  k8s_service: vcap-backend-v1-postgres:5432, behind Traefik with TLS termination
+  namespace: vcap-v1
+  owner: upayan (app owner)
+  scope: public — **open** (verified 2026-10-03)
+  status: open
+  reason: "V1-CUTOVER. Owner asked for v1's database to be reachable directly, without Cloudflare Access. Same TLS-required contract as 15432/15433 (OD-1) — Traefik terminates TLS with a leaf whose SAN is pg-v1.upayan.dev — but this edge carries its **own self-signed CA** rather than the cluster's Postgres edge CA, because that CA's key is deliberately not in this repository and cannot sign a new leaf. CA certificate is published in docs/runbooks/vcap-v1-postgres-access.md."
+  firewall_rule: "tcp 15434 from 0.0.0.0/0 and ::/0 (terraform/firewall.tf, V1-CUTOVER, 2026-10-03). Deliberately world-open per the owner's instruction; the only control on the path is the database password — PostgreSQL still has a single login role, `app_user`, which owns the database and is not a restricted per-person role."
+  ingress: "Traefik vcap-pg-v1 entrypoint -> IngressRouteTCP vcap-v1-postgres (k8s/apps/vcap-v1/edge) with tls.secretName + TLSOption vcap-pg"
+  auth: "TLS required (sslmode=verify-full recommended — the leaf carries DNS:pg-v1.upayan.dev and IP:138.201.157.147) + scram, role app_user"
+  temporary: false
+  expires: null
+
+
 - port: 30532
   proto: tcp
   service: vcap-staging postgres (duplicate NodePort path)
