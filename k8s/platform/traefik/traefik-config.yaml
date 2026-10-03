@@ -29,6 +29,19 @@ spec:
           default: true
         exposedPort: 15433
         protocol: TCP
+      # V1-CUTOVER (2026-10-03): v1's public Postgres edge. Its own port so
+      # v2's 15432/15433 stay exactly as they are for v2's return, and its own
+      # SNI (`pg-v1.upayan.dev`) so it can carry its own certificate instead of
+      # needing v2's. The firewall rule that makes it reachable from the
+      # internet is in terraform/firewall.tf and registered in
+      # inventory/ports.yaml; without that rule this listener is cluster-only,
+      # exactly like the other two were before theirs were added.
+      vcap-pg-v1:
+        port: 15434
+        expose:
+          default: true
+        exposedPort: 15434
+        protocol: TCP
       metrics:
         port: 9100
         expose:

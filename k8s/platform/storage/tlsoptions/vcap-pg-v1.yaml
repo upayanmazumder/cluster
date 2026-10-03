@@ -1,0 +1,26 @@
+# V1-CUTOVER (2026-10-03): the ALPN protocol name libpq 17+ offers, which
+# Traefik's TCP router otherwise refuses — the same option v2's edge carries
+# (`vcap-pg` in vcap-staging/vcap-dev), replicated per-namespace because a
+# TLSOption is namespaced and v1's edge lives in `vcap-v1`.
+#
+# Measured for v2 on 2026-09-29 through the public edge and unchanged here:
+#   openssl s_client … -servername pg-<env>.upayan.dev -alpn postgresql
+#     -> "tlsv1 alert no application protocol" (alert 120), handshake fails
+#   the same command with no -alpn
+#     -> Verify return code: 0 (ok)
+# TLS ALPN is how a Postgres client says "I am speaking the postgres protocol",
+# so the edge has to agree to it.
+apiVersion: traefik.io/v1alpha1
+kind: TLSOption
+metadata:
+  name: vcap-pg
+  namespace: vcap-v1
+  annotations:
+    # Like the edge routers: removing this file from git must not silently break
+    # the edge's TLS handshake for modern clients — that is a reviewed change,
+    # not a prune sweep.
+    argocd.argoproj.io/sync-options: Prune=false
+spec:
+  alpnProtocols:
+    - postgresql
+  minVersion: VersionTLS12
