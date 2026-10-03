@@ -46,3 +46,26 @@
     firstmatch: true
     validate: /usr/sbin/sshd -t -f %s
   notify: Restart sshd
+
+# kirro's LiveKit room server logs, on every start: "UDP receive buffer is too small for a
+# production set-up {current: 425984, suggested: 5000000}" — this node's default net.core.rmem_max,
+# too small for WebRTC media under load, drops packets. Confirmed host-level, not pod-level:
+# `kubectl -n kirro exec deploy/kirro-livekit -- ls /proc/sys/net/core/` does not even list
+# rmem_max/wmem_max (only the namespaced entries: optmem_max, somaxconn, ...) — the kernel hides
+# non-namespaced net.core sysctls from a container's own netns view, so there is no pod-level
+# equivalent; this must be a host sysctl (Cheetos-gif/kirro#26).
+- name: Raise net.core.rmem_max for kirro-livekit's UDP media (Cheetos-gif/kirro#26)
+  ansible.posix.sysctl:
+    name: net.core.rmem_max
+    value: "{{ net_core_rmem_max }}"
+    sysctl_set: true
+    state: present
+    reload: true
+
+- name: Raise net.core.wmem_max to match (symmetric send-side buffer)
+  ansible.posix.sysctl:
+    name: net.core.wmem_max
+    value: "{{ net_core_wmem_max }}"
+    sysctl_set: true
+    state: present
+    reload: true

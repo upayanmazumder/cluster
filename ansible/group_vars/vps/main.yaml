@@ -12,6 +12,10 @@ k3s_version: "v1.34.4+k3s1" # pinned; the k3s role refuses to run the installer 
 journald_system_max_use: "500M"
 atop_retention_days: 7
 sshd_x11_forwarding: false
+# LiveKit's own suggestion (Cheetos-gif/kirro#26, room server startup log). Default on this node was
+# 425984; wmem_max raised to match since WebRTC media is bidirectional.
+net_core_rmem_max: 5000000
+net_core_wmem_max: 5000000
 
 # k3s role — reproduces the exact live flags (verified via
 # `systemctl cat k3s` -> /etc/systemd/system/k3s.service.d/tailscale.conf on 2026-09-27).
