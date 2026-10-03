@@ -56,9 +56,15 @@ spec:
     server: https://kubernetes.default.svc
     namespace: vcap-dev
   syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
+    # V1-CUTOVER (2026-10-03): automated sync disabled to pause v2 while v1 is
+    # deployed in its place. Deployments are scaled to 0 and the Ingress is
+    # removed by hand; this stops ArgoCD selfHeal from reverting that. Data
+    # (Postgres PV/PVC) is untouched and still protected by the Application's
+    # own Delete=false,Prune=false annotation above. Revert: restore
+    #   automated:
+    #     prune: true
+    #     selfHeal: true
+    # then `kubectl scale --replicas=1 ...` and re-apply the v2 Ingress.
     # VCAP-007 (2026-09-29): the namespace is declared by the `storage`
     # Application now (k8s/platform/storage/namespaces-tenants.yaml), which
     # also enforces Pod Security `baseline` on it. ArgoCD therefore no longer
