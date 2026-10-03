@@ -30,6 +30,11 @@ psql "host=pg-v1.upayan.dev hostaddr=138.201.157.147 port=15434 \
 Do **not** use `sslmode=require` (it accepts any certificate, so it is not verification) and do not
 disable TLS.
 
+TLS is **terminated at the edge** (Traefik), exactly as on v2's path: the client↔edge leg is
+encrypted, and Traefik then forwards plaintext TCP to the Postgres pod inside the cluster. So a
+session that successfully used `sslmode=verify-full` still reports `ssl = f` in `pg_stat_ssl` — that
+column describes the *backend's* connection, not yours. Verified 2026-10-03.
+
 Modern clients (libpq 17+, psql 18) offer the ALPN name `postgresql`; the edge's `TLSOption`
 (`vcap-pg` in `vcap-v1`) accepts it. Without that option Traefik answers with alert 120 and the
 handshake fails — measured for v2 on 2026-09-29 and unchanged here.
