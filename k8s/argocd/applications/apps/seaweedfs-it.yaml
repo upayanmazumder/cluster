@@ -1,0 +1,54 @@
+# seaweedfs-it — SeaweedFS S3-gateway integration-test harness
+# (github.com/upayanmazumder-DevLabs/seaweedfs-s3-harness). Deploys the
+# official SeaweedFS Helm chart (a Helm *repository*, not a git repo) pinned
+# at 4.48.0, in a conservative split master/volume/filer/s3 topology.
+#
+# Evaluation only: no VCAP data lives here, and nothing else reads from or
+# writes to this namespace. Deliberately NOT automated-sync — this is a
+# test environment the owner wants to start/stop by hand, not a workload
+# that should self-heal indefinitely on a resource-constrained node.
+#
+# Three sources, same shape as rankstack.yaml:
+#   [0] the chart itself, from the Helm repository, with its values coming
+#       from a $values file reference (NOT an inline `helm.values:` block —
+#       scripts/helm-template-all.sh only resolves file references, so an
+#       inline block would never actually be rendered by this repo's CI).
+#   [1] this repo, labelled `values`, purely to resolve the $values/ prefix
+#       above — same two-source-for-one-repo shape rankstack uses.
+#   [2] this repo again, with a path, for the S3-identities Secret (ksops;
+#       cannot run alongside `kustomize --enable-helm` in the same source,
+#       same blocker as the VCAP Secrets).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: seaweedfs-it
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+spec:
+  project: seaweedfs-it
+  sources:
+    - repoURL: https://seaweedfs.github.io/seaweedfs/helm
+      chart: seaweedfs
+      targetRevision: 4.48.0
+      helm:
+        valueFiles:
+          - $values/k8s/apps/seaweedfs-it/values/seaweedfs.yaml
+    - repoURL: https://github.com/upayanmazumder/cluster
+      targetRevision: main
+      ref: values
+    - repoURL: https://github.com/upayanmazumder/cluster
+      targetRevision: main
+      path: k8s/apps/seaweedfs-it
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: seaweedfs-it
+  syncPolicy:
+    # No `automated:` block, deliberately: sync by hand
+    # (`argocd app sync seaweedfs-it`) so this evaluation workload never
+    # self-heals back into existence after a manual teardown, and never
+    # competes for resources with production tenants without the owner
+    # choosing that moment.
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

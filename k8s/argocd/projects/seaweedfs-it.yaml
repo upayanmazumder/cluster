@@ -1,0 +1,49 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: seaweedfs-it
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+spec:
+  description: >-
+    SeaweedFS S3-gateway integration-test harness
+    (github.com/upayanmazumder-DevLabs/seaweedfs-s3-harness). Evaluation
+    deployment only: no VCAP data, no other tenant's workload. Isolated in
+    its own namespace/project so it can be torn down with one `git rm` and
+    so its chart source (a public Helm repo, not a git repo) cannot reach
+    any other namespace.
+  sourceRepos:
+    # The official SeaweedFS Helm chart repository (not a git repo).
+    - https://seaweedfs.github.io/seaweedfs/helm
+    # This repo, for the override values and the S3-identities Secret.
+    - https://github.com/upayanmazumder/cluster
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: seaweedfs-it
+  # CreateNamespace=true needs Namespace permitted here; nothing else the
+  # chart renders is cluster-scoped (global.seaweedfs.createClusterRole is
+  # set to false in values.yaml below specifically so this can stay empty
+  # otherwise).
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+  namespaceResourceWhitelist:
+    - group: apps
+      kind: StatefulSet
+    - group: apps
+      kind: Deployment
+    - group: ""
+      kind: Service
+    - group: ""
+      kind: ConfigMap
+    - group: ""
+      kind: Secret
+    - group: ""
+      kind: PersistentVolumeClaim
+    - group: ""
+      kind: ServiceAccount
+    - group: networking.k8s.io
+      kind: NetworkPolicy
+  orphanedResources:
+    warn: true
