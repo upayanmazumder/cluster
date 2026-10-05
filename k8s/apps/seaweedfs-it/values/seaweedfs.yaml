@@ -1,0 +1,67 @@
+# Values for the official SeaweedFS Helm chart (seaweedfs-it Application,
+# sources[0]). As a committed file rather than an inline `helm.values:`
+# block: scripts/helm-template-all.sh only resolves `$values/...` file
+# references, not inline blocks, so this is what actually gets validated by
+# this repo's CI before it reaches the cluster.
+global:
+  seaweedfs:
+    # No cluster-scoped RBAC: the chart defaults this to true.
+    createClusterRole: false
+    enableSecurity: false
+
+master:
+  enabled: true
+  replicas: 1
+  data:
+    type: persistentVolumeClaim
+    size: 1Gi
+    storageClass: "local-path"
+  logs:
+    type: emptyDir
+  # Each S3 bucket is its own SeaweedFS collection; the chart default
+  # (1000MB) and the binary default (30000MB) both pre-allocate far more
+  # volume capacity than this node has spare disk for.
+  volumeSizeLimitMB: 256
+  resources:
+    requests: { cpu: 25m, memory: 48Mi }
+    limits: { cpu: 250m, memory: 160Mi }
+
+volume:
+  enabled: true
+  replicas: 1
+  index: leveldb
+  dataDirs:
+    - name: data1
+      type: persistentVolumeClaim
+      size: 8Gi
+      storageClass: "local-path"
+      maxVolumes: 20
+  resources:
+    requests: { cpu: 25m, memory: 48Mi }
+    limits: { cpu: 300m, memory: 192Mi }
+
+filer:
+  enabled: true
+  data:
+    type: persistentVolumeClaim
+    size: 1Gi
+    storageClass: "local-path"
+  logs:
+    type: emptyDir
+  s3:
+    enabled: false
+  resources:
+    requests: { cpu: 25m, memory: 48Mi }
+    limits: { cpu: 300m, memory: 192Mi }
+
+s3:
+  enabled: true
+  replicas: 1
+  enableAuth: true
+  existingConfigSecret: seaweedfs-it-s3-config
+  resources:
+    requests: { cpu: 25m, memory: 32Mi }
+    limits: { cpu: 250m, memory: 128Mi }
+
+# Everything else (allInOne, sftp, admin, worker, cosi,
+# monitoring/ServiceMonitor) stays at the chart's disabled defaults.
