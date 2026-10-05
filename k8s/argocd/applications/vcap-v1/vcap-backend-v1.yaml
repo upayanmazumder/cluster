@@ -20,10 +20,29 @@ metadata:
     argocd-image-updater.argoproj.io/write-back-method: git:secret:argocd/git-creds
     argocd-image-updater.argoproj.io/git-branch: main
     argocd-image-updater.argoproj.io/git-repository: https://github.com/upayanmazumder-DevLabs/vcap-backend-v1
+    # IMG-001 (2026-10-05): the tag is load-bearing. `update-strategy: digest`
+    # REQUIRES a version constraint, and these entries originally named only the
+    # repository — the updater rejected every one of them with
+    #   cannot use update strategy 'digest' for image 'api=ghcr.io/...' without a version constraint
+    # The two Applications that do work in this cluster both carry one
+    # (rankstack `:edge`, v2's `:latest`), and v2's edge is the pattern this was
+    # meant to copy; it was dropped when this file was written. `:latest` is the
+    # mutable tag the fork's CI publishes.
     argocd-image-updater.argoproj.io/image-list: >-
-      api=ghcr.io/upayanmazumder-devlabs/vcap-backend-v1,
-      worker=ghcr.io/upayanmazumder-devlabs/vcap-backend-v1,
-      auth=ghcr.io/upayanmazumder-devlabs/vcap-backend-v1-auth
+      api=ghcr.io/upayanmazumder-devlabs/vcap-backend-v1:latest,
+      worker=ghcr.io/upayanmazumder-devlabs/vcap-backend-v1:latest,
+      auth=ghcr.io/upayanmazumder-devlabs/vcap-backend-v1-auth:latest
+    # IMG-002 (2026-10-05): without these, every image is skipped with
+    # "seems not to be live in this application". The liveness check reads
+    # `status.summary.images`, which `GetImagesFromApplication` populates from
+    # *currently running* images — and that field is empty for every VCAP
+    # Application in this cluster (v2's included), so the check can never pass
+    # here. `force-update` is the documented bypass for exactly this case
+    # ("you may need to tell Image Updater to force the update despite no image
+    # running"); it is what makes the digest write-back possible at all.
+    argocd-image-updater.argoproj.io/api.force-update: "true"
+    argocd-image-updater.argoproj.io/worker.force-update: "true"
+    argocd-image-updater.argoproj.io/auth.force-update: "true"
     argocd-image-updater.argoproj.io/api.update-strategy: digest
     argocd-image-updater.argoproj.io/worker.update-strategy: digest
     argocd-image-updater.argoproj.io/auth.update-strategy: digest

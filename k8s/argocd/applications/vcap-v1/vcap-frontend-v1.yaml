@@ -16,8 +16,14 @@ metadata:
     argocd-image-updater.argoproj.io/write-back-method: git:secret:argocd/git-creds
     argocd-image-updater.argoproj.io/git-branch: main
     argocd-image-updater.argoproj.io/git-repository: https://github.com/upayanmazumder-DevLabs/vcap-frontend-v1
+    # IMG-001/IMG-002 (2026-10-05): same two fixes as the backend Application —
+    # a `digest` strategy needs the `:latest` version constraint, and the
+    # liveness check needs `force-update` because `status.summary.images` is
+    # empty for every VCAP Application here. See vcap-backend-v1.yaml for the
+    # full reasoning and the measured error strings.
     argocd-image-updater.argoproj.io/image-list: >-
-      web=ghcr.io/upayanmazumder-devlabs/vcap-frontend-v1
+      web=ghcr.io/upayanmazumder-devlabs/vcap-frontend-v1:latest
+    argocd-image-updater.argoproj.io/web.force-update: "true"
     argocd-image-updater.argoproj.io/web.update-strategy: digest
     argocd-image-updater.argoproj.io/web.helm.image-name: images.web.repository
     argocd-image-updater.argoproj.io/web.helm.image-tag: images.web.tag
