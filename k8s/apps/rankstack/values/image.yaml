@@ -11,4 +11,4 @@
 # updater replaces it on each new ghcr.io/upayanmazumder/rankstack/api:edge build.
 image:
   repository: ghcr.io/upayanmazumder/rankstack/api
-  tag: edge@sha256:10171032226d2d5950a1f57c052d1720e6bd307adc2c783b580ab7a54b80bf68
+  tag: edge@sha256:870e53e2e8695f000a4880ca290433c16df1be0e7d960050d8015adbf26850c5
