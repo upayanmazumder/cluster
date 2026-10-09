@@ -19,13 +19,13 @@ ArgoCD app name will be `<app-name>` (the list element's `name`), namespace = `<
 
 ```
 k8s/apps/<app>/
-  namespace.yaml
   deployments.yaml
   services.yaml
   ingress.yaml
   kustomization.yaml
-  secret.yaml              ← only if the app needs secrets
-  persistentvolumeclaim.yaml  ← only if the app needs storage
+  secret-generator.yaml      ← only if the app needs secrets
+  secrets.sops.yaml          ← encrypted secret values
+  persistentvolumeclaim.yaml ← only if the app needs storage
 ```
 
 ## 3. File templates
@@ -210,19 +210,26 @@ kubectl get pods -n <app-name>         # Running
 curl https://<hostname>.upayan.dev
 ```
 
-## Secret template (if needed)
+## Secrets (if needed)
 
+Never commit plaintext Secret manifests. Encrypt secrets with SOPS and age.
+
+### `secret-generator.yaml`
 ```yaml
-apiVersion: v1
-kind: Secret
+apiVersion: viaduct.ai/v1
+kind: ksops
 metadata:
-  name: <app-name>-env
-  namespace: <app-name>
-type: Opaque
-stringData:
-  KEY: value
+  name: <app-name>-secrets-generator
+  annotations:
+    config.kubernetes.io/function: |
+      exec:
+        path: ksops
+files:
+  - ./secrets.sops.yaml
 ```
 
-Reference in Deployment: `envFrom: [{secretRef: {name: <app-name>-env}}]`
-
-Plaintext in this private repo is the accepted policy. See `.claude/skills/secrets-tls/SKILL.md`.
+Add `secret-generator.yaml` under `generators:` in `kustomization.yaml`.
+Create and encrypt `secrets.sops.yaml` using `sops`:
+```bash
+sops k8s/apps/<app-name>/secrets.sops.yaml
+```

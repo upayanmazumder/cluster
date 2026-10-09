@@ -158,7 +158,7 @@ Type=oneshot
 # A timer has no terminal: without this the first run waits for the `restic init` confirmation and the
 # unit appears to hang. `sops` finds the age key in its default location, so no path is configured here.
 Environment=VPS_BACKUP_ASSUME_YES=1
-ExecStart=%h/dev/upayanmazumder/vps/scripts/pull-backups.sh
+ExecStart=%h/dev/upayanmazumder/cluster/scripts/pull-backups.sh
 EOF
 cat > ~/.config/systemd/user/vps-backup-mirror.timer <<'EOF'
 [Unit]

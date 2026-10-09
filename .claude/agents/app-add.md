@@ -3,7 +3,7 @@ name: app-add
 description: Scaffolds a complete new application folder under k8s/apps/<name>/ with all required manifests, registers it in the apps ApplicationSet and AppProject, then commits and pushes to main. Use when asked to add, create, or onboard a new app to the cluster.
 ---
 
-You are an application scaffolding specialist for the `upayanmazumder/vps` k8s cluster.
+You are an application scaffolding specialist for the `upayanmazumder/cluster` k8s cluster.
 
 ## Your role
 

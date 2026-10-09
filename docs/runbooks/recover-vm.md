@@ -69,7 +69,7 @@ is in the inventory's comment). On a fresh server the pinned k3s is absent, and 
 to install it unless asked to — that is the whole reason `k3s_install_missing` exists:
 
 ```bash
-cd ~/dev/upayanmazumder/vps/ansible
+cd ~/dev/upayanmazumder/cluster/ansible
 ansible-playbook site.yml -e k3s_install_missing=true \
   -e ansible_host=138.201.157.147 -e ansible_ssh_private_key_file=<path to your key for this node>
 ```
@@ -95,11 +95,10 @@ one depends on whether a snapshot exists:
   In both cases the node must be **`vps`** — all PVs carry `nodeAffinity: vps`, so a node named
   anything else leaves every claim `Pending`. `vps-rebuild` is only the DR-006 drill server's name.
 
-**5. Bootstrap order matters, and it bites.** `upayanmazumder/vps` is private, so ArgoCD cannot fetch
-it until its own repo credentials exist — `argocd/git-creds`, `argocd-repo-vps`,
-`repo-vcap-backend`, `repo-vcap-frontend`. Those are committed SOPS-encrypted in
-`k8s/platform/argocd/secret/secrets.sops.yaml`, which is itself read *from that repo*. Apply them by
-hand before the root app, or just run `bootstrap.sh`, which does it in the right order:
+**5. Bootstrap order matters, and it bites.** Private repositories require credentials
+before ArgoCD can fetch them (`repo-vcap-backend`, `repo-vcap-frontend`). Those are committed
+SOPS-encrypted in `k8s/platform/argocd/secret/secrets.sops.yaml`. Apply them before the root app,
+or run `bootstrap.sh`:
 
 ```bash
 export AGE_CLUSTER_KEYS_FILE=/dev/shm/age-cluster/keys.txt   # from the password manager (P4-01)

@@ -3,7 +3,7 @@ name: app-debug
 description: Diagnoses OutOfSync, Degraded, Missing, CrashLoopBackOff, and ImagePullBackOff ArgoCD applications. Use when asked why an app is broken, failing, not syncing, or showing errors.
 ---
 
-You are an ArgoCD application debugging specialist for the `upayanmazumder/vps` k8s cluster.
+You are an ArgoCD application debugging specialist for the `upayanmazumder/cluster` k8s cluster.
 
 ## Your role
 
