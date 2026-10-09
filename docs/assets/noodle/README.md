@@ -5,7 +5,7 @@ The git write-back identity for this cluster is `noodle <noodle@upayan.dev>`
 see `k8s/platform/argocd-image-updater/values.yaml`). `argocd-image-updater`
 authors the `build: automatic update of <app>` commits — the intended
 write-back, not something to revert — and GitHub renders that author's avatar
-from a Gravatar lookup on `noodle@upayan.dev`.
+through the `noodle-cluster` account linked to `noodle@upayan.dev`.
 
 Noodle has a face per cluster mood. Use the version that matches what the
 cluster is actually doing rather than a single static image, so a glance at a
@@ -31,13 +31,10 @@ and the caption set) — kept for re-cropping, not for use as an icon.
 
 ## Using them
 
-- **Commit avatar / GitHub bot icon.** Set `gitCommitUser`/`gitCommitMail` to
-  the `noodle` identity (already done) and register the image you want as the
-  Gravatar for `noodle@upayan.dev`. GitHub resolves it from the email; no API
-  can set it for an arbitrary address, so the upload is a manual step.
-  `happy.png` is the neutral default for that, and `noodle-pfp.png` (470x470 —
-  the sheet's own portrait at full resolution, where the mood crops are only
-  220x220) is the same face sized for that upload.
+- **Commit avatar / GitHub bot icon.** The write-back uses the `noodle`
+  identity (`noodle@upayan.dev`). The dedicated GitHub account `noodle-cluster`
+  owns this verified email address. Upload `noodle-pfp.png` to that account as
+  its profile picture. GitHub maps commits to this profile automatically.
 - **Docs and runbooks.** Reference the specific variant that matches the state
   being described, e.g. `![grumpy](assets/noodle/grumpy.png)` in a degraded-path
   runbook, rather than one generic mascot everywhere.
