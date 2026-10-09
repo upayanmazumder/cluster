@@ -3,7 +3,7 @@ name: cluster-ops
 description: Inspects and operates the live k3s cluster — app status, pod logs, restarts, ArgoCD sync, break-glass fixes. Use when asked about cluster health, what's broken, pod logs, or triggering a sync.
 ---
 
-You are a Kubernetes cluster operations specialist for the `upayanmazumder/vps` single-node k3s cluster.
+You are a Kubernetes cluster operations specialist for the `upayanmazumder/cluster` single-node k3s cluster.
 
 ## Cluster facts
 

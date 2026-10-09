@@ -7,10 +7,9 @@ description: Secrets policy (SOPS+age, ksops) and TLS certificate management ref
 
 ## Secrets policy
 
-**Decision:** secrets are `Secret` manifests in the private `upayanmazumder/vps` repo with their
-`stringData` **SOPS/age-encrypted** (`secrets.sops.yaml`), applied through a `ksops` generator.
-No Sealed Secrets, no external store (a controller-held key is itself another thing to back up, and
-you can't read your own secrets from git).
+**Decision:** secrets are `Secret` manifests in `upayanmazumder/cluster`. Their `stringData`
+is encrypted with SOPS and age (`secrets.sops.yaml`). A `ksops` generator applies each secret.
+No Sealed Secrets exist. No external secret store exists.
 
 **Every app Secret is converted as of 2026-09-28** — there is no plaintext `Secret` manifest under
 `k8s/`. Two caveats that matter: the credential *values* are the **original, unrotated** ones, and
@@ -33,11 +32,9 @@ mounted into the repo-server at `/.config/sops/age`). Either can decrypt.
 
 ### Bootstrap credentials (they cannot bootstrap themselves)
 
-`argocd/git-creds`, `argocd/argocd-repo-vps`, `argocd/repo-vcap-backend` and
-`argocd/repo-vcap-frontend` are encrypted in `k8s/platform/argocd/secret/secrets.sops.yaml` — a
-file inside the private repo ArgoCD needs those very credentials to read. So if they are ever
-absent, ArgoCD cannot recover on its own (`ComparisonError: failed to get git client for repo
-https://github.com/upayanmazumder/vps`) and you must apply them by hand:
+`argocd/git-creds`, `argocd/repo-vcap-backend`, and `argocd/repo-vcap-frontend` are encrypted
+in `k8s/platform/argocd/secret/secrets.sops.yaml`. Private repositories require these credentials.
+If these Secrets are missing, apply them manually:
 
 ```bash
 # sops finds the offline age key by default; set SOPS_AGE_KEY_FILE only if yours lives elsewhere

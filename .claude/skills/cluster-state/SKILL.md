@@ -15,7 +15,7 @@ description: Live cluster topology, full application inventory, ArgoCD project m
 | External IP | `138.201.157.147` |
 | Ingress | k3s built-in Traefik HelmChart (`kube-system/traefik`) — this repo does NOT deploy a separate Traefik; `traefik-config` app only patches it (postgres passthrough ports) via `HelmChartConfig` |
 | Storage | `local-path` (default) + Hetzner CSI (`hcloud-volumes`) |
-| GitOps | ArgoCD app-of-apps, source: `main` branch of `upayanmazumder/vps` |
+| GitOps | ArgoCD app-of-apps, source: `main` branch of `upayanmazumder/cluster` |
 
 ## ArgoCD bootstrap
 
