@@ -2,10 +2,10 @@
 # here: the frontend is deployed to Vercel (rankstack.upayan.dev), not this
 # cluster.
 # Chart source: upayanmazumder/rankstack repo, k8s/chart/ (public repo).
-# Values: this vps repo, k8s/apps/rankstack/values/{prod,image}.yaml (secrets
-# stay in the private repo -- same split as vcap-backend-staging.yaml).
-# `prod.yaml` is hand-authored; `image.yaml` is written by argocd-image-updater
-# and is rendered last, so its digest pin wins.
+# Values: this cluster repo for prod.yaml (overlay/CORS), and upayanmazumder/rankstack
+# for values-image.yaml (managed by argocd-image-updater).
+# `prod.yaml` is hand-authored; `values-image.yaml` is written by argocd-image-updater
+# in the app repo and is rendered last, so its digest pin wins.
 # Explicit Application (not ApplicationSet) so it can carry
 # argocd-image-updater annotations.
 apiVersion: argoproj.io/v1alpha1
@@ -24,11 +24,11 @@ metadata:
     argocd-image-updater.argoproj.io/api.update-strategy: digest
     argocd-image-updater.argoproj.io/api.helm.image-name: image.repository
     argocd-image-updater.argoproj.io/api.helm.image-tag: image.tag
-    # Write the resolved digest to GIT, not to this Application in-cluster.
-    argocd-image-updater.argoproj.io/write-back-method: "git:secret:argocd/git-creds-updater"
-    argocd-image-updater.argoproj.io/write-back-target: "helmvalues:/k8s/apps/rankstack/values/image.yaml"
+    # Write the resolved digest to GIT on the app repo, not this cluster repo.
+    argocd-image-updater.argoproj.io/write-back-method: "git:secret:argocd/git-creds-rankstack"
+    argocd-image-updater.argoproj.io/write-back-target: "helmvalues:/k8s/chart/values-image.yaml"
     argocd-image-updater.argoproj.io/git-branch: main
-    argocd-image-updater.argoproj.io/git-repository: git@github.com:upayanmazumder/cluster.git
+    argocd-image-updater.argoproj.io/git-repository: git@github.com:upayanmazumder/rankstack.git
 spec:
   project: apps
   sources:
@@ -37,10 +37,10 @@ spec:
       targetRevision: main
       helm:
         # Order matters: later files win, so the updater-managed digest pin in
-        # `image.yaml` overrides the chart defaults without touching `prod.yaml`.
+        # `values-image.yaml` overrides the chart defaults and `prod.yaml`.
         valueFiles:
           - $values/k8s/apps/rankstack/values/prod.yaml
-          - $values/k8s/apps/rankstack/values/image.yaml
+          - values-image.yaml
     - repoURL: https://github.com/upayanmazumder/cluster
       targetRevision: main
       ref: values
