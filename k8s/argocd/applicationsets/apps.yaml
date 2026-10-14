@@ -101,10 +101,6 @@ spec:
             imageList: "api=ghcr.io/upayanmazumder/smart-home-system/api:latest"
             alias0: api
             kustomize0: ghcr.io/upayanmazumder/smart-home-system/api
-          - name: upayan-web
-            imageList: "app=ghcr.io/upayanmazumder/upayan.dev:latest"
-            alias0: app
-            kustomize0: ghcr.io/upayanmazumder/upayan.dev
   template:
     metadata:
       name: '{{.name}}'
