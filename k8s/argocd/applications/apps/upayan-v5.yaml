@@ -9,8 +9,8 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-options: Delete=false,Prune=false
     # Digest tracking on the mutable `latest` tag that upayan.dev `main` publishes, same pattern
-    # as status-page. write-back is git so the resolved digest lands in
-    # k8s/apps/upayan-v5/kustomization.yaml.
+    # as status-page. write-back is git; with no write-back-target set, the resolved digest lands
+    # in k8s/apps/upayan-v5/.argocd-source-upayan-v5.yaml.
     argocd-image-updater.argoproj.io/image-list: "api=ghcr.io/upayanmazumder/upayan.dev/api:latest"
     argocd-image-updater.argoproj.io/api.update-strategy: digest
     argocd-image-updater.argoproj.io/api.kustomize.image-name: ghcr.io/upayanmazumder/upayan.dev/api

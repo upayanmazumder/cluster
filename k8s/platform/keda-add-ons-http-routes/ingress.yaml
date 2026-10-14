@@ -69,24 +69,4 @@ spec:
                 name: keda-add-ons-http-interceptor-proxy
                 port:
                   number: 8080
-    - host: upayan-v5.upayan.dev
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: keda-add-ons-http-interceptor-proxy
-                port:
-                  number: 8080
-    - host: api-upayan-v5.upayan.dev
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: keda-add-ons-http-interceptor-proxy
-                port:
-                  number: 8080
   # No tls: block — Traefik serves *.upayan.dev via the default wildcard cert.
