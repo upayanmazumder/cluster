@@ -76,7 +76,6 @@ generator; "Explicit" rows are `k8s/argocd/applications/apps/<app>.yaml`.
 | `meghmitra` | Explicit | `meghmitra` | `meghmitra.upayan.dev`, `api-meghmitra.upayan.dev` | `ghcr.io/xarhaanshx/meghmitra/{api,web}:edge` |
 | `mochi` | Explicit | `mochi` | *(none)* | `…/mochi:latest` |
 | `rankstack` | Explicit (Helm, multi-source) | `rankstack` | *(chart in `upayanmazumder/rankstack`)* | `…/rankstack/api:edge` |
-| `upayan-web` | Set | `upayan-web` | none (draining, 2026-10-14; removal is phase 2) | none |
 | `cheatsheet` | Set | `cheatsheet` | `sayantani.upayan.dev`, `api-sayantani.upayan.dev` | `…/cheatsheet:latest` |
 | `status-page` | Explicit | `status-page` | `status-page.upayan.dev`, `api-status-page.upayan.dev` | `…/status-page/{api,app}:latest` |
 | `kodesphere` | Set | `kodesphere` | `ks.upayan.dev`, `api.ks.upayan.dev` | `…/kodesphere:latest` |

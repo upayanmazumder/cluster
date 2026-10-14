@@ -118,7 +118,7 @@ data:
 
 ### Secrets currently in git
 
-**App secrets:** `vcap-*-env`, `cas-api-env`, `bandit-secrets`, `cheatsheet-web-env`, `upayan-web-env`, `smart-home-system-api-env`, `kodesphere-env`, `github-private-key` (kodesphere PEM mount)
+**App secrets:** `vcap-*-env`, `cas-api-env`, `bandit-secrets`, `cheatsheet-web-env`, `upayan-v5-api-env`, `smart-home-system-api-env`, `kodesphere-env`, `github-private-key` (kodesphere PEM mount)
 
 **Platform secrets:** `git-creds` (Image Updater git write-back PAT), `ghcr-creds` (**dead/unused** — dead PAT; the updater reads GHCR anonymously, so don't reach for it when something can't pull)
 

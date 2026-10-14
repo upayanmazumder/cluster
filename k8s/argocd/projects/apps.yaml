@@ -55,8 +55,6 @@ spec:
       namespace: status-page
     - server: https://kubernetes.default.svc
       namespace: upayan-v5
-    - server: https://kubernetes.default.svc
-      namespace: upayan-web
   clusterResourceWhitelist:
     - group: ""
       kind: Namespace

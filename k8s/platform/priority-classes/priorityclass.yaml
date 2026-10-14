@@ -9,7 +9,7 @@ description: >-
   learning-docker/qwik/react, meghmitra's stateless tiers (api + web — NOT its postgres, which backs
   them, holds class A data and must not be preempted), mochi, smart-home-system-api, upayan-v5.
   Scheduled below the implicit default (0) so the scheduler and kubelet node-pressure eviction reclaim
-  these first, ahead of the always-on set (argocd, monitoring, status-page, upayan-web, vcap).
+  these first, ahead of the always-on set (argocd, monitoring, status-page, upayan-v5, vcap).
   Rewritten 2026-09-28: the previous text began mid-list with a stray ")" and still listed cheatsheet,
   decommissioned earlier the same day. It names `meghmitra` as a whole, but only its api/web Deployments
   are demoted — see k8s/apps/meghmitra/api.yaml for why the database stays at the default priority.
