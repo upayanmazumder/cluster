@@ -79,7 +79,7 @@ the leaked one.
 | `git-creds-updater`, `git-creds-noodle` | `k8s/platform/argocd-image-updater/secrets.sops.yaml`, `.../noodle/secrets.sops.yaml` | image-updater's git write-back, one write deploy key per repository it commits to |
 | `bitvault-ghcr-pull` | `k8s/apps/bitvault/secrets.sops.yaml` | bitvault pod image pulls |
 | `ghcr-creds` | **not in git** (live Secret only, 97d old) | `argocd-image-updater`, and it is currently **dead** (GitHub returns `401`) |
-| `GITHUB_TOKEN` | `k8s/apps/kodesphere/secrets.sops.yaml`, `k8s/apps/upayan-v5/secrets.sops.yaml` (Secret `upayan-v5-api-secrets`, needs only `read:user`) | kodesphere's API calls; the upayan.dev stats API's contribution calendar (verify `https://api.upayan.dev/api/github/contributions` is `200`) |
+| `GITHUB_TOKEN` | `k8s/apps/kodesphere/secrets.sops.yaml`, `k8s/apps/upayan-v5/secrets.sops.yaml` (Secret `upayan-v5-api-env`, needs only `read:user`) | kodesphere's API calls; the upayan.dev stats API's contribution calendar (verify `https://api.upayan.dev/api/github/contributions` is `200`) |
 
 - **Rotate:** mint the replacement (a classic PAT with `read:packages` for registry reads; read-only
   deploy keys per repo for ArgoCD; a fine-grained PAT limited to the repos image-updater writes, for
