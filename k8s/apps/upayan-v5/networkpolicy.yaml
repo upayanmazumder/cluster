@@ -1,7 +1,15 @@
-# S11: both api and app scale via the KEDA HTTP add-on -- see
-# ../cas-api/networkpolicy.yaml for the full explanation of why the
-# interceptor (not Traefik) is the source. Also allow same-namespace
-# traffic in case app calls api internally.
+# S11 hardening: default-deny ingress. The website runs on Vercel, so the only
+# legitimate source is Traefik, which routes api.upayan.dev to the API on 8080.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: upayan-v5-default-deny-ingress
+  namespace: upayan-v5
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -17,40 +25,10 @@ spec:
     - from:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: keda
+              kubernetes.io/metadata.name: kube-system
           podSelector:
             matchLabels:
-              app.kubernetes.io/component: interceptor
+              app.kubernetes.io/name: traefik
       ports:
         - protocol: TCP
           port: 8080
-    - from:
-        - podSelector:
-            matchLabels:
-              app: upayan-v5-app
-      ports:
-        - protocol: TCP
-          port: 8080
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: upayan-v5-app
-  namespace: upayan-v5
-spec:
-  podSelector:
-    matchLabels:
-      app: upayan-v5-app
-  policyTypes:
-    - Ingress
-  ingress:
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: keda
-          podSelector:
-            matchLabels:
-              app.kubernetes.io/component: interceptor
-      ports:
-        - protocol: TCP
-          port: 3000
