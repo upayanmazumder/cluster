@@ -1,19 +1,12 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: upayan-web
+# Decommission, phase 1 of 2 (2026-10-14): the v4 Node API that served api.upayan.dev is replaced
+# by the Rust API in `upayan-v5`. Removing the Deployment, Service, Ingress, and Secret here lets
+# this Application's automated prune delete them (the ApplicationSet preserves resources when an
+# Application itself is deleted, so pruning has to happen before the registration goes).
+# Phase 2 removes this folder, the ApplicationSet element, and the project namespace.
 resources:
   - networkpolicy.yaml
-  - deployments.yaml
-  - services.yaml
-  - ingress.yaml
 components:
-  # CLUSTER-001: shared namespace + PSA labels; the per-app namespace.yaml this replaces was
-  # byte-identical apart from its `name:`, which the kustomization's `namespace:` now supplies.
   - ../../components/namespace-baseline
-
-generators:
-  # SOPS-encrypted via ksops (kind: ksops) -- see secrets.sops.yaml
-  - secret-generator.yaml
-images:
-  - name: ghcr.io/upayanmazumder/upayan.dev
-    newTag: latest

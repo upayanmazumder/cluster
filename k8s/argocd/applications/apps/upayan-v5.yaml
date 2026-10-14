@@ -1,3 +1,6 @@
+# upayan-v5 — the Rust stats API behind api.upayan.dev (Spotify, Discord presence, signed PC
+# reports, GitHub contributions, DevJourney proxy). The upayan.dev website itself runs on
+# Vercel since v5.0.0 (2026-10-14), so this namespace holds only the API.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -5,11 +8,12 @@ metadata:
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-options: Delete=false,Prune=false
-    argocd-image-updater.argoproj.io/image-list: "app=ghcr.io/upayanmazumder/upayan.dev/app,api=ghcr.io/upayanmazumder/upayan.dev/api"
-    argocd-image-updater.argoproj.io/app.update-strategy: semver
-    argocd-image-updater.argoproj.io/app.allow-tags: "regexp:^v[0-9]+$"
-    argocd-image-updater.argoproj.io/api.update-strategy: semver
-    argocd-image-updater.argoproj.io/api.allow-tags: "regexp:^v[0-9]+$"
+    # Digest tracking on the mutable `latest` tag that upayan.dev `main` publishes, same pattern
+    # as status-page. write-back is git so the resolved digest lands in
+    # k8s/apps/upayan-v5/kustomization.yaml.
+    argocd-image-updater.argoproj.io/image-list: "api=ghcr.io/upayanmazumder/upayan.dev/api:latest"
+    argocd-image-updater.argoproj.io/api.update-strategy: digest
+    argocd-image-updater.argoproj.io/api.kustomize.image-name: ghcr.io/upayanmazumder/upayan.dev/api
     argocd-image-updater.argoproj.io/write-back-method: "git:secret:argocd/git-creds-updater"
     argocd-image-updater.argoproj.io/git-branch: main
     argocd-image-updater.argoproj.io/git-repository: git@github.com:upayanmazumder/cluster.git
@@ -22,12 +26,8 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: upayan-v5
-  ignoreDifferences:
-    # upayan-v5-app and upayan-v5-api scale 0<->1 via the KEDA HTTP add-on.
-    - group: apps
-      kind: Deployment
-      jsonPointers:
-        - /spec/replicas
+  # No ignoreDifferences on /spec/replicas: the API no longer scales to zero. It keeps the latest
+  # signed PC report and its provider caches in memory, so it runs one replica at all times.
   syncPolicy:
     automated:
       prune: true

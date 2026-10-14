@@ -38,13 +38,22 @@ spec:
                         - upayan-v5-api
                 topologyKey: kubernetes.io/hostname
       securityContext:
-        fsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: upayan-v5-api
-          image: ghcr.io/upayanmazumder/upayan.dev/api:v5
-          imagePullPolicy: Always
+          image: ghcr.io/upayanmazumder/upayan.dev/api:latest
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
           envFrom:
             - secretRef:
                 name: upayan-v5-api-secrets
@@ -59,7 +68,7 @@ spec:
             httpGet:
               path: /health
               port: 8080
-            initialDelaySeconds: 30
+            initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
@@ -67,7 +76,7 @@ spec:
             httpGet:
               path: /health
               port: 8080
-            initialDelaySeconds: 10
+            initialDelaySeconds: 2
             periodSeconds: 5
             timeoutSeconds: 3
             failureThreshold: 3
