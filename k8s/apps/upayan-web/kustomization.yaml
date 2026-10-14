@@ -5,12 +5,9 @@ namespace: upayan-web
 # by the Rust API in `upayan-v5`. Removing the Deployment, Service, and Ingress here lets
 # this Application's automated prune delete them (the ApplicationSet preserves resources when an
 # Application itself is deleted, so pruning has to happen before the registration goes).
-# Phase 2 removes this folder, the ApplicationSet element, and the project namespace.
+# Phase 2 (2026-10-14) pruned Secret `upayan-web-env`. Phase 3 removes this folder, the ApplicationSet
+# element, and the project namespace.
 resources:
   - networkpolicy.yaml
 components:
   - ../../components/namespace-baseline
-generators:
-  # Kept for one sync only: the Secret now drops its Prune=false protection, so phase 2 can
-  # remove it from git and have automated prune delete it.
-  - secret-generator.yaml
