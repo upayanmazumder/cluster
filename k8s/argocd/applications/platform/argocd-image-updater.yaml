@@ -10,7 +10,7 @@ spec:
   sources:
     - repoURL: https://argoproj.github.io/argo-helm
       chart: argocd-image-updater
-      targetRevision: "0.14.0" # pinned: was floating "0.*"; this is the version already running live (2026-09-28)
+      targetRevision: "1.3.2" # IMG-006: v0.17.0 (annotation-based) -> v1.3.1 (CRD-based). See changelog/2026-10.md.
       helm:
         valueFiles:
           - $values/k8s/platform/argocd-image-updater/values.yaml

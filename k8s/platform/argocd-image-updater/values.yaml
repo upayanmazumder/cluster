@@ -19,12 +19,24 @@
 # being digest-pinned and pulled via their own `pull-secret`s. So removing the line is the right
 # response to a dead token, and restoring it is the right response to a live one.
 # P6-02/P6-06: paused at 0 through the cutover (P6-02) and resumed here (P6-06).
-# `replicaCount` is the chart's own key (verified against argo/argocd-image-updater 0.14.0).
 # It was paused because it writes commits to a git repository, and during the source switch it would
 # have been committing into the repository that is no longer the one being reconciled. The
 # `git-repository` annotations now name `https://github.com/upayanmazumder/cluster`, and this file
 # lives there too, so a resumed updater writes where ArgoCD reads.
+#
+# IMG-006 (2026-10-22): migrated from chart 0.14.0 (app v0.17.0, annotation-based) to chart
+# 1.3.2 (app v1.3.1, CRD-based). The `config:` keys below changed shape between chart major
+# versions — `logLevel`/`disableKubeEvents`/`gitCommitUser`/`gitCommitMail` (0.x) became the
+# dotted `log.level`/`kube.events`/`git.user`/`git.email` ConfigMap keys (1.x); `registries` kept
+# its shape and syntax unchanged. `disableKubeEvents: false` (0.x, events ON) is `kube.events:
+# true` here (1.x, same "events ON" meaning but the flag polarity flipped from negative to
+# positive). None of the 11 Applications that carry `argocd-image-updater.argoproj.io/*`
+# annotations were touched — see ../../argocd/applications/platform/argocd-image-updater.yaml for
+# the `ImageUpdater` CR that points `useAnnotations: true` at each of them, so the existing,
+# already-verified annotation blocks keep working exactly as before.
 replicaCount: 1
+crds:
+  install: true
 
 config:
   registries:
@@ -37,16 +49,16 @@ config:
       # episode belonged to is now backed up and alerted on either way (see docs/backups.md).
       credentials: pullsecret:argocd/ghcr-creds
       default: true
-  logLevel: info
-  disableKubeEvents: false
+  log.level: info
+  kube.events: true
   # BOT-001 (2026-10-03): renamed from `argocd-image-updater
   # <image-updater@upayan.dev>`. The write-back bot is `noodle` now — its
   # `build: automatic update of <app>` commits are still the intended
   # write-back, only the author changed. GitHub maps the author avatar from the
   # `noodle-cluster` account that owns `noodle@upayan.dev`; the neutral default is `happy`
   # (docs/assets/noodle/README.md maps the rest).
-  gitCommitUser: noodle
-  gitCommitMail: noodle@upayan.dev
+  git.user: noodle
+  git.email: noodle@upayan.dev
 resources:
   requests:
     cpu: 25m
