@@ -37,6 +37,19 @@
 replicaCount: 1
 crds:
   install: true
+  # IMG-006 fix (2026-10-22): the CRD (this Helm source) and the ImageUpdater
+  # CR it defines (a different source, kustomize) are both resources on the
+  # same multi-source Application with no guaranteed apply order between
+  # sources. `SkipDryRunOnMissingResource=true` on the CR alone was not
+  # enough: ArgoCD's sync-wide pre-flight plan aborted the *entire* sync
+  # (including this independent CRD) every time it hit the CR's "no matches
+  # for kind" error, so the CRD itself never got a chance to apply across 4
+  # consecutive automated retries (observed live, see changelog). An
+  # explicit earlier sync-wave forces the CRD through to completion (and the
+  # cluster's RESTMapper cache to catch up) before ArgoCD plans the later
+  # wave the CR lives in.
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
 
 config:
   registries:
