@@ -13,8 +13,8 @@
 #     template from `<clone>/<path>`
 #
 # Charts in another Git repository render when the repository is public and in the allowlist below.
-# The v1 VCAP charts are public and render here. This script reports anything it skipped rather than
-# passing silently.
+# The v1 VCAP charts are private, so CI here cannot fetch them, and their renders belong in that
+# repository's own CI (CI-006). This script reports anything it skipped rather than passing silently.
 #
 # Usage: scripts/helm-template-all.sh [OUTFILE]   (default: stdout)
 # Exit: 0 only if every Helm-sourced Application rendered.
@@ -40,14 +40,13 @@ while IFS= read -r -d '' manifest; do
     total=$((total + 1))
 
     if [ "$shape" = "git" ]; then
-      # A chart inside another Git repository. Only public repositories in this allowlist render.
-      # Anything else is skipped *loudly* so a gap never reads as coverage.
+      # A chart inside another Git repository. Only repositories this repo's CI can fetch are
+      # rendered: the private VCAP repositories need credentials CI does not have. Skipped
+      # *loudly* so a gap never reads as coverage.
       case "$repo" in
-        *github.com/upayanmazumder/*|\
-        *github.com/upayanmazumder-DevLabs/vcap-backend-v1|\
-        *github.com/upayanmazumder-DevLabs/vcap-frontend-v1) ;;
+        *github.com/upayanmazumder/*) ;;
         *)
-          echo "SKIPPED: $app — chart lives in $repo, which is not in the render allowlist; rendered by that repo's own CI (CI-006)" >&2
+          echo "SKIPPED: $app — chart lives in $repo, which CI here cannot fetch (private cross-org repo); rendered by that repo's own CI (CI-006)" >&2
           skipped=$((skipped + 1))
           continue
           ;;

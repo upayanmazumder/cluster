@@ -100,8 +100,8 @@ The old `argocd-repo-vps` Secret does not exist. Do not add it. The cluster repo
 | Terraform secrets | never | external `secrets.enc.env`, read by `scripts/tf.sh` |
 | age private keys | never | owner and `argocd/sops-age` |
 
-The v1 repositories under `upayanmazumder-DevLabs` are public. Anonymous `git ls-remote` works. The
-`repo-creds-devlabs` entry is retained. It is not required for a public clone.
+The v1 repositories under `upayanmazumder-DevLabs` are private. ArgoCD reads them through
+`repo-creds-devlabs`. An unauthenticated fetch returns `401`.
 
 `git-creds-noodle` and `git-creds-rankstack` exist only in the live cluster. They have no source
 manifest. They support retained workloads that no longer run. Do not make them a v1 prerequisite.

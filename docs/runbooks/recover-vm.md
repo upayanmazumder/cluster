@@ -118,10 +118,11 @@ k8s/bootstrap/bootstrap.sh
 ```
 
 `bootstrap.sh` applies the credentials from `k8s/platform/argocd/secret/secrets.sops.yaml`. The
-`vcap-v1` application repositories are public, so `repo-vcap-backend` and
-`repo-vcap-frontend` are **not** v1 requirements. They target the retired
-`vitscopesoftwareteam/VCAP-STAGING-*` repositories and exist for historical recovery only. Keep
-`git-creds`, because the cluster repository itself still uses it.
+`vcap-v1` application repositories are private. ArgoCD reads them through `repo-creds-devlabs`, the
+URL-prefix credential for the `upayanmazumder-DevLabs` organization. Keep that Secret. The
+`repo-vcap-backend` and `repo-vcap-frontend` entries are **not** v1 requirements: they target the
+retired `vitscopesoftwareteam/VCAP-STAGING-*` repositories and exist for historical recovery only.
+Keep `git-creds`, because the cluster repository itself still uses it.
 
 The failure mode is a `ComparisonError: failed to get git client for repo` on every Application.
 That happened on 2026-09-28 when the Secrets were re-homed (see

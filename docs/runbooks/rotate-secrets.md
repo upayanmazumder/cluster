@@ -93,8 +93,8 @@ kubectl -n <namespace> rollout restart deploy/<name>
 `argocd-repo-vps` does not exist. Do not add it.
 
 The two `repo-vcap-*` credentials target the unused v2 staging repositories. They are not a v1
-requirement. The v1 repositories under `upayanmazumder-DevLabs` are public. Anonymous
-`git ls-remote` works for both.
+requirement. The v1 repositories under `upayanmazumder-DevLabs` are private. ArgoCD reads them
+through `repo-creds-devlabs`. An unauthenticated fetch returns `401`.
 
 - **Rotate a GitHub credential:** create the replacement at GitHub. A fine-grained PAT needs access
   to the exact repositories. An SSH deploy key must be unique to one repository. Write the value to
