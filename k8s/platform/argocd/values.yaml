@@ -1,6 +1,18 @@
 # ArgoCD Helm chart values — self-managed by the `argocd` Application.
 # Traefik terminates TLS externally, so ArgoCD server runs in insecure mode.
 # Run `argocd app diff argocd` before first sync.
+#
+# IMG-005: chart 10.10.5 (app v3.5.5, upgraded from 7.9.1/v2.14.11) flips the
+# chart's own default to `global.networkPolicy.create: true`, which would add
+# 5 duplicate NetworkPolicy objects under different names alongside the ones
+# this repo already manages explicitly (see
+# k8s/platform/argocd/network-policies/manifests.yaml, S11). That file's
+# repo-server policy intentionally allows more than the chart's own template
+# would, so the chart's version is not a safe substitute. Pinned back to the
+# pre-upgrade behavior.
+global:
+  networkPolicy:
+    create: false
 configs:
   params:
     server.insecure: "true"
