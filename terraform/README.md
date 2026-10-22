@@ -1,7 +1,7 @@
 # Terraform — provider layer
 
-Owns: the Hetzner server (imported), primary IPs, the Hetzner firewall, R2 buckets, and (once
-`cf-terraforming`'s import plan is zero-diff) the Cloudflare zone's DNS records and settings. Never
+Owns: the Hetzner server (imported), primary IPs, the Hetzner firewall, R2 buckets, the Cloudflare
+zone settings, and (once `cf-terraforming`'s import plan is zero-diff) the zone's DNS records. Never
 owns anything inside the VM or Kubernetes — see `../docs/maintenance.md#ownership-model`.
 
 Status: **applied, 2026-10-23.** `terraform state list` tracks 15 managed resources: the Hetzner
