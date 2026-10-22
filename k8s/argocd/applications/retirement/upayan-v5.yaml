@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: upayan-v5
+  namespace: argocd
+spec:
+  project: apps
+  source:
+    repoURL: https://github.com/upayanmazumder/cluster
+    targetRevision: main
+    path: k8s/retired/upayan-v5
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: upayan-v5
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true

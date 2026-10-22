@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: bandit
+  namespace: argocd
+spec:
+  project: apps
+  source:
+    repoURL: https://github.com/upayanmazumder/cluster
+    targetRevision: main
+    path: k8s/retired/bandit
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: bandit
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true

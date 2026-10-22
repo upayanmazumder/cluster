@@ -19,6 +19,16 @@ spec:
   # is not permitted in project apps") rather than deploying anywhere.
   destinations:
     - server: https://kubernetes.default.svc
+      namespace: bandit
+    - server: https://kubernetes.default.svc
+      namespace: bitvault
+    - server: https://kubernetes.default.svc
+      namespace: kirro
+    - server: https://kubernetes.default.svc
+      namespace: rankstack
+    - server: https://kubernetes.default.svc
+      namespace: upayan-v5
+    - server: https://kubernetes.default.svc
       namespace: cas-api
     - server: https://kubernetes.default.svc
       namespace: dj-html-nodejs-web
