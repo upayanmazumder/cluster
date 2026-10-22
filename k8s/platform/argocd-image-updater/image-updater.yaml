@@ -26,9 +26,19 @@ metadata:
     # The `imageupdaters.argocd-image-updater.argoproj.io` CRD comes from the
     # Helm source (`crds.install: true`) on the same Application, in a
     # different `sources[]` entry with no guaranteed apply order relative to
-    # this plain-manifest source. Without this, a first sync could dry-run
-    # this CR before the CRD exists and fail with "no matches for kind".
+    # this plain-manifest source. `SkipDryRunOnMissingResource=true` alone
+    # was NOT enough -- observed live (2026-10-22, changelog IMG-006 fix):
+    # ArgoCD's sync-wide pre-flight plan aborted the *entire* sync, CRD
+    # included, on every automated retry whenever it hit this CR's "no
+    # matches for kind" error, so the CRD never got applied either. The
+    # `crds.annotations.argocd.argoproj.io/sync-wave: "-1"` set on the chart
+    # in ../../platform/argocd-image-updater/values.yaml is the actual fix
+    # (forces the CRD through a whole wave, and the cluster's RESTMapper
+    # cache to catch up, before this wave is even planned). Both kept:
+    # belt-and-braces for any future first-apply (e.g. a full CRD
+    # reinstall).
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/sync-wave: "0"
 spec:
   applicationRefs:
     - namePattern: mochi
