@@ -114,8 +114,8 @@
   owner: upayan (app owner)
   scope: public
   status: removed
-  reason: "The v2 Postgres workload and its Traefik route were removed on 2026-10-23. The namespace, Secrets, and PVC remain for data recovery, but nothing listens. The firewall rule was removed from the source in the same change. Apply state is unconfirmed."
-  firewall_rule: none — rule removed 2026-10-23
+  reason: "The v2 Postgres workload and its Traefik route were removed on 2026-10-23. The namespace, Secrets, and PVC remain for data recovery, but nothing listens. Terraform removed the firewall rule and applied the change on 2026-10-23. The public port is closed."
+  firewall_rule: "none — rule removed and applied 2026-10-23"
   ingress: "no listener: IngressRouteTCP vcap-postgres-dev deleted 2026-10-23"
   auth: "not served"
   temporary: false
@@ -146,8 +146,8 @@
   owner: upayan (app owner)
   scope: public
   status: removed
-  reason: "The v2 Postgres workload and its Traefik route were removed on 2026-10-23. The namespace, Secrets, and PVC remain for data recovery, but nothing listens. The firewall rule was removed from the source in the same change. Apply state is unconfirmed."
-  firewall_rule: none — rule removed 2026-10-23
+  reason: "The v2 Postgres workload and its Traefik route were removed on 2026-10-23. The namespace, Secrets, and PVC remain for data recovery, but nothing listens. Terraform removed the firewall rule and applied the change on 2026-10-23. The public port is closed."
+  firewall_rule: "none — rule removed and applied 2026-10-23"
   ingress: "no listener: IngressRouteTCP vcap-postgres-staging deleted 2026-10-23"
   auth: "not served"
   temporary: false
@@ -412,8 +412,8 @@
   owner: upayan (app owner)
   scope: public
   status: removed
-  reason: "Retired with the `kirro` workloads on 2026-10-23. The namespace and its two PVCs remain for data recovery. The LiveKit Deployment and its LoadBalancer Service no longer exist, so this path is gone. The Hetzner rule was removed in the same change."
-  firewall_rule: "none — rule removed 2026-10-23"
+  reason: "Retired with the `kirro` workloads on 2026-10-23. The namespace and its two PVCs remain for data recovery. The LiveKit Deployment and its LoadBalancer Service no longer exist, so this path is gone. Terraform removed and applied the Hetzner rule change on 2026-10-23."
+  firewall_rule: "none — rule removed and applied 2026-10-23"
   ingress: none
   auth: none
   temporary: false
@@ -428,8 +428,8 @@
   owner: upayan (app owner)
   scope: public
   status: removed
-  reason: "Retired with the `kirro` workloads on 2026-10-23. The namespace and its two PVCs remain for data recovery. The LiveKit Deployment and its LoadBalancer Service no longer exist, so this path is gone. The Hetzner rule was removed in the same change."
-  firewall_rule: "none — rule removed 2026-10-23"
+  reason: "Retired with the `kirro` workloads on 2026-10-23. The namespace and its two PVCs remain for data recovery. The LiveKit Deployment and its LoadBalancer Service no longer exist, so this path is gone. Terraform removed and applied the Hetzner rule change on 2026-10-23."
+  firewall_rule: "none — rule removed and applied 2026-10-23"
   ingress: none
   auth: none
   temporary: false

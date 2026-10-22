@@ -29,10 +29,10 @@ Before you add a port, read [`runbooks/add-port.md`](runbooks/add-port.md).
 | 41641 | udp | tailscaled | public | live | Required for NAT traversal |
 | 5432 | tcp | vcap v2 legacy Postgres | public | removed | NodePort duplicates deleted 2026-09-29. v2 workloads retired 2026-10-23. No route and no listener |
 | 5433 | tcp | vcap v2 legacy Postgres | public | removed | Same as 5432 |
-| 15432 | tcp | vcap v2 dev Postgres | public | removed | Workload and Traefik entrypoint removed 2026-10-23. Firewall rule removed from the repository. Apply state unconfirmed |
+| 15432 | tcp | vcap v2 dev Postgres | public | removed | Workload and Traefik entrypoint removed 2026-10-23. Firewall rule removed and applied 2026-10-23. Port closed |
 | 15433 | tcp | vcap v2 staging Postgres | public | removed | Same as 15432 |
-| 7881 | tcp | LiveKit room server | public | removed | Rule removed 2026-10-23 with the `kirro` workload |
-| 7882 | udp | LiveKit media | public | removed | Rule removed 2026-10-23 with the `kirro` workload |
+| 7881 | tcp | LiveKit room server | public | removed | Removed with the `kirro` workload 2026-10-23. Firewall rule removed and applied 2026-10-23. Port closed |
+| 7882 | udp | LiveKit media | public | removed | Removed with the `kirro` workload 2026-10-23. Firewall rule removed and applied 2026-10-23 |
 | 30532 | tcp | vcap NodePort duplicate | public | removed | Unmanaged. Deleted 2026-09-29 |
 | 30533 | tcp | vcap NodePort duplicate | public | removed | Unmanaged. Deleted 2026-09-29 |
 | 32301 | tcp | Traefik NodePort for v2 dev | public | removed | Deleted 2026-09-29 |

@@ -21,9 +21,9 @@ The repository declares these rules:
 
 TCP `15432`, TCP `15433`, TCP `7881`, and UDP `7882` are absent from the repository.
 Their last consumers, the vcap v2 and kirro workloads, were removed on 2026-10-23.
-The live Hetzner firewall can still contain the old rules until the infrastructure path applies
-`terraform/firewall.tf`.
-Check the live rules before you report the firewall as changed.
+Terraform applied the same removals to firewall `11692068` on 2026-10-23.
+Public probes confirm that ports `15432` and `15433` are closed.
+`7881` is closed too.
 
 All other ports are dropped. Host `iptables` INPUT policy is `ACCEPT`. `ufw` is inactive.
 No `fail2ban` runs. The cloud firewall is the only packet filter.

@@ -12,6 +12,7 @@ terraform {
     }
   }
 
-  # Local backend until the `vps-tfstate` R2 bucket exists (this config creates it — chicken/egg).
-  # See backend.tf and terraform/README.md "Bootstrap sequence" for the two-phase migration.
+  # State lives in the `vps-tfstate` R2 bucket. The live S3 backend is in backend.tf.
+  # Use scripts/tf.sh from the repository root. It decrypts the provider credentials
+  # and snapshots remote state before any state-writing command.
 }
