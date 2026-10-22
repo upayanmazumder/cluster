@@ -44,7 +44,8 @@ images: the image tarballs come back with the restic `etcd` snapshot (step 6)
 | Live-only Secrets | etcd | No | R2 `etcd` snapshot. Rebuild from git otherwise. |
 
 RPO for class A is 30 minutes plus the offsite lag, at most about one hour. RPO for class C is 24
-hours plus the offsite lag. RTO has **not** been measured for the current target set.
+hours plus the offsite lag. The data-level restore drills measured 61 s for class A and 17 s for
+class C on 2026-10-23. RTO for full VM loss has **not** been measured.
 
 ## Step by step, with the gotchas that bite
 
@@ -206,4 +207,6 @@ Treat every RTO figure as a target.
 The monthly drills do run. The class-A drill restores the class-A snapshot, imports the `vcap-v1`
 logical dump, and compares row counts. It also validates every registered raw `file` tree. The
 class-C drill restores the class-C snapshot, validates every raw tree, and checks the Mongo tree.
-Both drills fail when a registered path is missing.
+Both drills fail when a registered path is missing. On 2026-10-23, class A passed in 60.68 s and
+class C passed in 17.05 s. These times cover data restore and validation only. They do not cover
+VM provisioning, Ansible, etcd restore, or service cutover.

@@ -78,17 +78,18 @@ targets and retention.
 Not backed up:
 
 - `meghmitra-corpus-pvc`: 4 KB and effectively empty. The corpus is re-downloadable.
-- `meghmitra-data-pvc`: its configured host path does not exist. See below.
+- `meghmitra-data-pvc`: it is empty and has no backup target. See below.
 - Prometheus and Loki: disposable monitoring data.
 
 ## Known gaps
 
-### `meghmitra-data-pvc` has no data path
+### `meghmitra-data-pvc` is empty
 
-PV `meghmitra-data-pvc-vps` is `Bound` and claims hostPath `/srv/data/meghmitra-data`. That
-directory does not exist. The PVC has no recoverable content. Do not delete the PVC or the PV. The
-binding records the configured intent, and a future restoration may recreate the path. No backup
-target exists for it because there is no path to read.
+PV `meghmitra-data-pvc-vps` is `Bound` and claims hostPath `/srv/data/meghmitra-data`. The directory
+exists. The Ansible `data_volume` role created it on 2026-10-23. It is empty. The PVC has no
+recoverable content. Do not delete the PVC or the PV. The binding records the configured intent,
+and a future restoration may write data to the path. No backup target exists for it because there
+is no data to read.
 
 ### `smart-home-system-api` is out of this inventory
 

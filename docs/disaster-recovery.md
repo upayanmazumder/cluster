@@ -47,9 +47,9 @@ everything else, and it only gets staler.
 and restic lists the repository on every run); whether it returns to 15 min depends on the measured
 counts — see `changelog/2026-09.md` |
 | RPO, class C | ≤ 24 h | daily timer |
-| RTO, class-A restore drill | not yet measured for the current set | the class-A drill imports the `vcap-v1` dump and compares its table list and row counts with live. It also validates the raw `/srv/data/vcap-staging` and `vcap-v1` application-data trees. The old sub-5-minute measurement covered the now-retired v2 import (1 385 and 48 672 rows) and is historical |
+| RTO, class-A restore drill | **61 s**, data-level only | measured 2026-10-23 on snapshot `bc2ea61d`. The drill restored 1796 files and dirs. It imported the `vcap-v1` dump: 416 TOC entries, 58 tables, and 104 live rows matched 104 restored rows. The raw `/srv/data/vcap-staging` and `vcap-v1` application-data trees matched live. It does not cut over a service. The old sub-5-minute measurement covered the now-retired v2 import and is historical |
 | RTO, VM loss | ~2 h target | Terraform → Ansible → etcd restore. **Never exercised end-to-end**; that is what the S12 drill on a temporary VM is for |
-| Class C restore | monthly automated drill | the class-C drill restores raw trees into a throwaway namespace, validates the Postgres and WiredTiger layouts, and diffs the file lists. It does not start a database server |
+| Class C restore | **17 s**, data-level only | measured 2026-10-23 on snapshot `a88c92f5`. The drill restored 7086 files and dirs. It validated the Postgres 16 trees and the rankstack WiredTiger tree. Every one of the 9 class-C targets matched its live object list. It does not start a database server |
 
 ## What survives what
 
@@ -69,7 +69,8 @@ counts — see `changelog/2026-09.md` |
 
 Class-A data is protected against the common losses — accidental deletion, a bad migration, logical
 corruption. The monthly drill imports the `vcap-v1` dump and validates the raw class-A trees. The
-current v1 restore time is not yet measured. The retired v2 row-count result is historical. Hardening
+2026-10-23 data-level drill completed in 61 s. It did not cut over a service. The retired v2
+row-count result is historical. Hardening
 that is already in place and worth knowing: the server has `delete_protection` +
 `rebuild_protection`, both primary IPs are `auto_delete=false` and delete-protected, and the
 `vps-data` volume is delete-protected — all verified live on 2026-09-28 (`terraform plan` reports no
