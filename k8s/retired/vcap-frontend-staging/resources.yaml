@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: retirement-marker
+  namespace: vcap-staging
+data:
+  purpose: Keep this Application active until ArgoCD prunes its former resources.

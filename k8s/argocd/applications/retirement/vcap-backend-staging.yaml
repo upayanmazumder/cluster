@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vcap-backend-staging
+  namespace: argocd
+spec:
+  project: vcap
+  source:
+    repoURL: https://github.com/upayanmazumder/cluster
+    targetRevision: main
+    path: k8s/retired/vcap-backend-staging
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vcap-staging
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true

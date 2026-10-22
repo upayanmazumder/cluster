@@ -24,6 +24,10 @@ spec:
     # (paused, not deleted) so its data and resource names stay put for its
     # eventual redeploy.
     - server: https://kubernetes.default.svc
+      namespace: vcap-dev
+    - server: https://kubernetes.default.svc
+      namespace: vcap-staging
+    - server: https://kubernetes.default.svc
       namespace: vcap-v1
   # ESC-001 / VCAP-002 (2026-09-29): this project granted `Namespace`,
   # `ClusterRole`, `ClusterRoleBinding` and all of `keda.sh/*` at cluster
