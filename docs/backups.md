@@ -95,6 +95,10 @@ backed up as raw, static files. Read [runbooks/restore-postgres.md](runbooks/res
   - If the drill cannot run a check it **fails**, writes no metric, and removes its scratch
     namespaces. The class-A metric is separate from the class-C metric, so one class cannot mask the
     other.
+  - **Current result (2026-10-23):** class A restored snapshot `bc2ea61d` in 60.68 s. It imported
+    the `vcap-v1` dump with 416 TOC entries and 58 tables. Its 104 live rows matched 104 restored
+    rows. Class C restored snapshot `a88c92f5` in 17.05 s and matched all 9 targets. Both runs
+    reported success and wrote their metrics. These times cover data restore and validation only.
   - **Historical first run (2026-09-28, before retirement):** 139 files and directories restored,
     dumps listed 100 and 409 TOC entries, and imports matched the live database (vcap-staging 57
     tables, meghmitra 17). That measurement applied to the retired logical-dump layout.
