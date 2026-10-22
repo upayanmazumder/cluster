@@ -64,18 +64,14 @@ generator; "Explicit" rows are `k8s/argocd/applications/apps/<app>.yaml`.
 
 | ArgoCD app | Defined by | Namespace | Host(s) | Image |
 |---|---|---|---|---|
-| `upayan-v5` | Explicit | `upayan-v5` | `api.upayan.dev` (Traefik, always on; the website is on Vercel) | `ghcr.io/upayanmazumder/upayan.dev/api:latest` (digest) |
 | `smart-home-system-api` | Set | `smart-home-system-api` | `api-smart-home-system.upayan.dev` | `…/smart-home-system/api:latest` |
 | `learning-react` | Set | `learning-react` | `react.dj.upayan.dev`, `api.react.dj.upayan.dev` | `…/devjourney/learning-react:latest` |
 | `learning-qwik` | Set | `learning-qwik` | `qwik.dj.upayan.dev` | `…/devjourney/learning-qwik:latest` |
 | `cas-api` | Set | `cas-api` | `api-cas.upayan.dev` | `…/cas-api:latest` |
 | `learning-docker` | Set | `learning-docker` | `bots.upayan.dev` | `…/learning-docker:latest` |
-| `bandit` | Set | `bandit` | `bandit.upayan.dev`, `api-bandit.upayan.dev` | `…/bandit:latest` |
 | `dj-html-nodejs-web` | Set | `dj-html-nodejs-web` | *(no Ingress yet)* | `…/devjourney/html-nodejs/web:latest` |
-| `bitvault` | Set | `bitvault` | `api-bitvault.upayan.dev` | `…/bitvault/bitvaultd:edge` |
 | `meghmitra` | Explicit | `meghmitra` | `meghmitra.upayan.dev`, `api-meghmitra.upayan.dev` | `ghcr.io/xarhaanshx/meghmitra/{api,web}:edge` |
 | `mochi` | Explicit | `mochi` | *(none)* | `…/mochi:latest` |
-| `rankstack` | Explicit (Helm, multi-source) | `rankstack` | *(chart in `upayanmazumder/rankstack`)* | `…/rankstack/api:edge` |
 | `cheatsheet` | Set | `cheatsheet` | `sayantani.upayan.dev`, `api-sayantani.upayan.dev` | `…/cheatsheet:latest` |
 | `status-page` | Explicit | `status-page` | `status-page.upayan.dev`, `api-status-page.upayan.dev` | `…/status-page/{api,app}:latest` |
 | `kodesphere` | Set | `kodesphere` | `ks.upayan.dev`, `api.ks.upayan.dev` | `…/kodesphere:latest` |
@@ -96,9 +92,8 @@ generator; "Explicit" rows are `k8s/argocd/applications/apps/<app>.yaml`.
 
 | ArgoCD app | Namespace | Status |
 |---|---|---|
-| `vcap-backend-dev` | `vcap-dev` | Healthy |
-| `vcap-backend-staging` | `vcap-staging` | Healthy |
-| `vcap-frontend-staging` | `vcap-staging` | Healthy |
+| `vcap-backend-v1` | `vcap-v1` | Healthy |
+| `vcap-frontend-v1` | `vcap-v1` | Healthy |
 
 ## Known broken items (pre-existing, documented)
 
