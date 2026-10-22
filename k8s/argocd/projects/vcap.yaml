@@ -87,5 +87,33 @@ spec:
     # create or change it — which is the same boundary this list enforces, kept intact.
     - group: traefik.io
       kind: IngressRouteTCP
+    # IMG-004 (2026-10-22): `Pod` and `ReplicaSet` added, namespaced only,
+    # neither rendered by any chart in this project. ArgoCD's resource-tree
+    # walk that populates `Application.status.summary.images` (Deployment →
+    # ReplicaSet → Pod) only descends into kinds the project permits —
+    # confirmed empirically: every Application in a project with an explicit
+    # (non-wildcard) `namespaceResourceWhitelist` that omits these two kinds
+    # has `status.summary.images` empty (all 5 `vcap` apps, plus
+    # `adhigrahan-radar` in its own narrow project), while every Application
+    # in the wildcard `apps` project (mochi, rankstack, upayan-v5, kirro,
+    # status-page) has it populated. Without `status.summary.images`,
+    # argocd-image-updater's liveness check always fails, forcing
+    # `force-update: "true"` on every vcap image alias — which is the
+    # precondition for the `images.auth.tag` oscillation bug documented in
+    # IMG-002/IMG-003 on `vcap-backend-v1`.
+    #
+    # Security note, since this project was hardened after ESC-001/VCAP-002
+    # (see the `clusterResourceWhitelist: []` comment above): this does not
+    # reopen that escalation. Both kinds are namespaced only (no
+    # `ClusterRole`/`ClusterRoleBinding`-class risk), and `apps/Deployment`
+    # is already permitted here — a Deployment can already create a
+    # ReplicaSet creating a Pod with an arbitrary spec, so whitelisting the
+    # two descendant kinds directly grants no privilege beyond what
+    # `Deployment` already does. No `ServiceAccount` with elevated RBAC is
+    # granted by this change.
+    - group: ""
+      kind: Pod
+    - group: apps
+      kind: ReplicaSet
   orphanedResources:
     warn: true
