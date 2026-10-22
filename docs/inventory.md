@@ -1,20 +1,22 @@
 # Machine inventory
 
 Factual reference sheet — "what is this machine, exactly." Source: §1 and §2.1 of the architecture
-review (kept private, not published). Verified 2026-09-27 via Hetzner API GETs and `ssh`/`kubectl`
-read commands.
+review (kept private, not published). Hetzner rows use `terraform/` as the source. Host and storage
+facts were checked on 2026-10-23 with `ssh` and `kubectl` read commands.
 
 ## Hetzner project
 
 | Resource | ID / value | Notes |
 |---|---|---|
-| Server `vps` | 122385524, cx33, fsn1, created 2026-02-28 | backups off, delete/rebuild protection off, no firewall attached (S0 owner action pending — see `../changelog/2026-09.md`) |
-| Primary IPv4 | 138.201.157.147 | `auto_delete=true` (deleting the server loses the IP) — S0 owner action pending |
-| Primary IPv6 | 2a01:4f8:c012:957::/64 | `auto_delete=true` — S0 owner action pending |
-| Volume 106574316 | `pvc-807fffe3-057e-4b2c-a5f6-6aa3b7e38bfa`, 10 GB | vcap-dev data (hcloud CSI); PV patched to `Retain` in S0; protection off |
-| Volume 106574315 | `pvc-55404a44-5cab-42ee-84d8-ab8a6490467e`, 10 GB | vcap-staging data (hcloud CSI); PV patched to `Retain` in S0; protection off |
-| Volume 106353532 | **does not exist** | still referenced by PV `pvc-6d634268-5fbb-4830-8116-5472acb00922` (smart-home-system-api PVC, deploy scaled 0/0). Deliberate loss, owner-confirmed; PV intentionally left `Delete` in S0 |
-| Firewalls / networks / LBs / floating IPs / snapshots / backups | none | target: Terraform-managed firewall + R2 buckets (S2) |
+| Server `vps` | 122385524, cx33, fsn1, created 2026-02-28 | Hetzner server backup off. Delete and rebuild protection on. Firewall `vps` (11692068) attached 2026-09-28. Declared in `terraform/hcloud.tf`. |
+| Primary IPv4 | 138.201.157.147 | `auto_delete=false` and delete protection on, so the address survives a server rebuild. |
+| Primary IPv6 | 2a01:4f8:c012:957::/64 | `auto_delete=false` and delete protection on. |
+| Volume `vps-data` | 106969476, Terraform-managed, 20 GB | Attached as `/dev/sdb` and mounted at `/srv/data`. Delete protection on. The static `hostPath` PVs use this volume. |
+| Legacy volume 106574315 (staging) and 106574316 (dev) | two 10 GB hcloud CSI volumes | No PV references them. The data moved to `/srv/data`. Teardown is pending. |
+| Legacy volume 106353532 | **does not exist** | No PV references it. The former `smart-home-system-api` Hetzner CSI volume is gone. Two local-path PVCs for that app remain bound in `default` and `smart-home-system-api`. The Deployment is scaled to zero. The loss is deliberate and owner-confirmed. See [`storage.md`](storage.md). |
+| Firewall `vps` | 11692068 | Attached 2026-09-28. The repository declares tcp/22, tcp/80, tcp/443, tcp/6443, tcp/15434, udp/41641, and icmp. TCP 80 and 443 use Cloudflare ranges while `cloudflare_only_ingress` is true. Live rules can lag until Terraform applies `firewall.tf`. See [`networking.md`](networking.md). |
+| R2 buckets | `vps-backups`, `vps-tfstate` | Offsite restic snapshots and Terraform state. Location WEUR. No versioning. |
+| Networks, load balancers, floating IPs, snapshots | none | The Kubernetes API uses a host port. |
 | SSH keys (Hetzner project) | `vps-root`, and the owner's personal key (its name is an address — held privately) | |
 
 ## k3s
@@ -35,7 +37,7 @@ read commands.
 | Public IPv4 | 138.201.157.147 |
 | Public IPv6 | 2a01:4f8:c012:957::/64 |
 | Tailscale IP | 100.96.250.81 |
-| Disk | 75 GB root (ext4), ~73% used as of 2026-09-27 |
+| Disk | 75 GB root (ext4), 64% used as of 2026-10-23. A 20 GB data volume is mounted at `/srv/data`, 3% used. |
 | Patching | `unattended-upgrades` on (OS packages only, no cadence beyond that — see `upgrade-policy.md`) |
 
 ## Cloudflare
@@ -56,11 +58,10 @@ can be published without carrying personal data. Delete the private copy once it
 | Role | Access |
 |---|---|
 | Owner / admin | Tailnet (SSH, kubectl), Cloudflare Access allow-list, only tailnet identity in the target design |
-| vcap dev | Public Postgres DB credentials only (**open** on 15432/15433 with TLS + per-person roles; 5432/5433 never reopen) — **no tailnet access** |
-| vcap dev | Same as above — DB credentials only, no tailnet |
+| VCAP v1 tenant | Public Postgres credentials only (open on 15434 with TLS). No tailnet access. |
 
 ## Related
 
 - [`architecture.md`](architecture.md) — how these pieces fit together, current and target
-- [`storage.md`](storage.md) — what's on the two CSI volumes and the root disk
+- [`storage.md`](storage.md) — what is on the data volume, the local-path PVs, and the root disk
 - [`ports.md`](ports.md) — what's reachable on this machine and from where

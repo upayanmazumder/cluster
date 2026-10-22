@@ -16,15 +16,16 @@ No Sealed Secrets exist. No external secret store exists.
 the old plaintext values remain in git **history**. Rotation order and the post-rotation
 `git filter-repo` + `gitleaks` rewrite live in `../../docs/secrets.md` and are owner-gated.
 
-The Helm **values** files are no longer a plaintext home: the vcap Secrets moved to
-`k8s/apps/vcap/secrets/{dev,staging}/secrets.sops.yaml` (SEC-003, 2026-09-29), emitted by a ksops
-generator in a **separate multi-source** of the same Application. That is how the long-standing
-"a git-sourced Helm chart cannot run ksops" blocker was resolved — not by publishing the chart, which
+The Helm **values** files are no longer a plaintext home. As of 2026-10-23 the live vcap Secrets are
+`k8s/apps/vcap-v1/secrets/secrets.sops.yaml`, emitted by a ksops generator in a **separate
+multi-source** of the same Application. The retired v2 directories
+`k8s/apps/vcap/secrets/{dev,staging}/` used the same pattern. That is how the long-standing "a
+git-sourced Helm chart cannot run ksops" blocker was resolved — not by publishing the chart, which
 the runbook assumed was the only route. `helm-secrets` is still not installed and still not needed.
 
-**Consequence:** the vcap api/auth/worker Deployments carry `checksum/secret` over the chart's own
-`secret.yaml`, which now renders nothing — so **a credential edit no longer rolls those pods**. After
-changing one, run `kubectl rollout restart deploy/<name> -n vcap-{dev,staging}`.
+**Consequence:** the vcap-v1 api/auth/worker Deployments carry `checksum/secret` over the chart's
+own `secret.yaml`, which renders nothing — so **a credential edit no longer rolls those pods**.
+After changing one, run `kubectl rollout restart deploy/<name> -n vcap-v1`.
 
 Keys: `.sops.yaml` at the repo root names two age recipients (`age-ops`, the owner's workstation key
 at the offline age key's default location; and `age-cluster`, installed as the `argocd/sops-age` Secret and
@@ -118,9 +119,9 @@ data:
 
 ### Secrets currently in git
 
-**App secrets:** `vcap-*-env`, `cas-api-env`, `bandit-secrets`, `cheatsheet-web-env`, `upayan-v5-api-env`, `smart-home-system-api-env`, `kodesphere-env`, `github-private-key` (kodesphere PEM mount)
+**App secrets:** `vcap-*-env`, `cas-api-env`, `cheatsheet-web-env`, `smart-home-system-api-env`, `kodesphere-env`, `github-private-key` (kodesphere PEM mount)
 
-**Platform secrets:** `git-creds` (Image Updater git write-back PAT), `ghcr-creds` (**dead/unused** — dead PAT; the updater reads GHCR anonymously, so don't reach for it when something can't pull)
+**Platform secrets:** `git-creds` (Image Updater git write-back PAT), `ghcr-creds` (live GHCR pull and registry credential). The old 401 failure came from a dead PAT. The owner refreshed it, and image-updater now reads the registry with this Secret.
 
 ## TLS
 

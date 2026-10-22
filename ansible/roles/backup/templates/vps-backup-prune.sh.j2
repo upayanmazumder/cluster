@@ -6,7 +6,7 @@
 # this one (see README.md).
 #
 # Keep policies mirror the "Retention (target)" column of docs/storage.md's dataset table:
-#   class A — 15-min snapshots for 48h, then daily 30d / weekly 12w / monthly 12m
+#   class A — 30-min snapshots for 48h, then daily 30d / weekly 12w / monthly 12m
 #   class C — 7 daily
 # Snapshots are tagged by vps-backup.sh (`--tag class-A|class-C`), which is what these filters match.
 set -uo pipefail

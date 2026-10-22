@@ -1,8 +1,7 @@
 # status-page — explicit Application rather than a member of the `apps`
 # ApplicationSet: it ships two images (api + app), and the set's template is
 # deliberately single-image because a `{{- if }}` line is not valid YAML inside
-# an ApplicationSet manifest. Same reason meghmitra (api + web) and upayan-v5
-# (app + api) are explicit.
+# an ApplicationSet manifest. Same reason meghmitra (api + web) is explicit.
 #
 # Previously generated as `sg-status-page` by the `apps-sg` set; renamed and
 # moved here in the de/sg consolidation (2026-09-28). The resources were

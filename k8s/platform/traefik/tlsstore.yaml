@@ -1,13 +1,11 @@
 # S11/S7: make Traefik's default certificate explicit.
 #
 # Today the Cloudflare Origin CA wildcard reaches Traefik only by accident: the
-# `monitoring/grafana-tls` and `upayan-v5/upayan-v5-tls` Secrets happen to
-# contain the same wildcard, Traefik loads them because those Ingresses
-# resolve, and it then serves the wildcard by SNI match for every other
-# `*.upayan.dev` host -- including the six hosts whose Ingresses reference a
-# per-app Secret that does not exist in their namespace (bandit, cheatsheet,
-# learning-react, meghmitra, status-page, upayan-web all log
-# "secret <ns>/<name>-tls does not exist" on every reconcile).
+# `monitoring/grafana-tls` Secret happens to contain the wildcard, Traefik loads
+# it because that Ingress resolves, and it then serves the wildcard by SNI match
+# for every other `*.upayan.dev` host -- including hosts whose Ingresses
+# reference a per-app Secret that does not exist in their namespace (status-page
+# and upayan-web log "secret <ns>/<name>-tls does not exist" on every reconcile).
 #
 # A TLSStore named `default` in the same namespace as Traefik is the supported
 # way to state this deliberately. The Secret it points at is the same

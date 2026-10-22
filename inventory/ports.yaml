@@ -93,65 +93,65 @@
 - port: 5432
   proto: tcp
   service: vcap-dev postgres (legacy public path)
-  k8s_service: IngressRouteTCP vcap-postgres-dev (k8s/apps/vcap/edge/dev) — its entrypoint is `vcap-pg-dev` since N7; the `postgres-dev` entrypoint no longer exists
+  k8s_service: null  # IngressRouteTCP vcap-postgres-dev was deleted 2026-10-23
   namespace: vcap-dev
   owner: upayan (app owner), vcap devs (consumers)
   scope: public
-  status: closed
-  reason: "**Closed.** The unmanaged NodePort duplicate was deleted 2026-09-29 (P1-05) and the tenant chart's own same-namespace NetworkPolicy (2026-09-28) blocks the Traefik path, so this port serves nothing today. It is not the target port and must not reopen — the public path is the one below."
-  firewall_rule: none today (no 5432 rule is intended)
-  ingress: "no listener: Traefik's `postgres-dev` entrypoint was removed with N7 (2026-09-29)"
-  auth: "scram, app superuser only — not an acceptable state to expose"
+  status: removed
+  reason: "The legacy path is gone. The unmanaged NodePort duplicate was deleted 2026-09-29. The v2 Postgres workload was removed 2026-10-23. The namespace, Secrets, and PVC remain for data recovery, and they serve no traffic."
+  firewall_rule: none
+  ingress: "none: the v2 entrypoint and IngressRouteTCP were removed"
+  auth: "not served"
   temporary: false
-  expires: "never reopens; superseded by 15432"
+  expires: "removed 2026-10-23. v1 uses 15434"
 
 
 - port: 15432
   proto: tcp
-  service: vcap-dev postgres (target public path)
-  k8s_service: vcap-backend-dev-postgres:5432, behind Traefik with TLS termination
+  service: vcap-dev postgres (v2, retired public path)
+  k8s_service: null
   namespace: vcap-dev
-  owner: upayan (app owner), vcap devs (consumers)
-  scope: public — **open** (verified 2026-09-29)
-  status: open
-  reason: "Owner decision OD-1: the public path is 15432, not 5432 — a non-default port is defence against mass scanning, not a security control on its own. It stays closed until ALL of: TLS at Traefik with a private-CA leaf (sslmode=verify-ca), a non-superuser vcap_app role, pg_hba that rejects network superuser logins, per-person non-superuser roles, the cluster-owned additive ingress NetworkPolicy, and auth-failure alerting — AND the VCAP team accepts the chart-side pg_hba/role change (OD-16). Today both instances are ssl=off and the only login role is a superuser."
-  firewall_rule: "tcp 15432 from 0.0.0.0/0 and ::/0 — **this rule exists and is applied** (terraform/firewall.tf, N7, 2026-09-29). This field said 'NO such rule exists today' until 2026-09-30, contradicting the `status: open` three lines above it and the Terraform that had carried the rule for a day; scripts/check-ports.py now compares the two so the pair cannot disagree again."
-  ingress: "Traefik vcap-pg-dev entrypoint (P7-N7) -> IngressRouteTCP with tls.secretName"
-  auth: "TLS required (sslmode=verify-full recommended — the leaf carries DNS:pg-dev.upayan.dev — verify-ca the minimum) + scram, per-person non-superuser roles"
+  owner: upayan (app owner)
+  scope: public
+  status: removed
+  reason: "The v2 Postgres workload and its Traefik route were removed on 2026-10-23. The namespace, Secrets, and PVC remain for data recovery, but nothing listens. The firewall rule was removed from the source in the same change. Apply state is unconfirmed."
+  firewall_rule: none — rule removed 2026-10-23
+  ingress: "no listener: IngressRouteTCP vcap-postgres-dev deleted 2026-10-23"
+  auth: "not served"
   temporary: false
-  expires: null
+  expires: "reopens only with a new deliberate decision"
 
 
 - port: 5433
   proto: tcp
   service: vcap-staging postgres (legacy public path)
-  k8s_service: IngressRouteTCP vcap-postgres-staging (k8s/apps/vcap/edge/staging) — its entrypoint is `vcap-pg-staging` since N7; the `postgres-staging` entrypoint no longer exists
+  k8s_service: null
   namespace: vcap-staging
-  owner: upayan (app owner), vcap devs (consumers)
+  owner: upayan (app owner)
   scope: public
-  status: closed
-  reason: "**Closed.** The unmanaged NodePort duplicate was deleted 2026-09-29 (P1-05) and the tenant chart's own same-namespace NetworkPolicy (2026-09-28) blocks the Traefik path, so this port serves nothing today. It is not the target port and must not reopen — the public path is the one below."
-  firewall_rule: none today (no 5433 rule is intended)
-  ingress: "no listener: Traefik's `postgres-staging` entrypoint was removed with N7 (2026-09-29)"
-  auth: "scram, app superuser only — not an acceptable state to expose"
+  status: removed
+  reason: "The legacy path is gone. The unmanaged NodePort duplicate was deleted 2026-09-29. The v2 Postgres workload was removed 2026-10-23. The namespace, Secrets, and PVC remain for data recovery, and they serve no traffic."
+  firewall_rule: none
+  ingress: "none: the v2 entrypoint and IngressRouteTCP were removed"
+  auth: "not served"
   temporary: false
-  expires: "never reopens; superseded by 15433"
+  expires: "removed 2026-10-23. v1 uses 15434"
 
 
 - port: 15433
   proto: tcp
-  service: vcap-staging postgres (target public path, holds real student data)
-  k8s_service: vcap-backend-staging-postgres:5432, behind Traefik with TLS termination
+  service: vcap-staging postgres (v2, retired public path)
+  k8s_service: null
   namespace: vcap-staging
-  owner: upayan (app owner), vcap devs (consumers)
-  scope: public — **open** (verified 2026-09-29)
-  status: open
-  reason: "Same contract as 15432 (OD-1), and additionally gated on the VCAP team's acceptance of the pg_hba/non-superuser change (OD-16) because this instance holds class A student data. Nothing about it may open before the 15432 path has been exercised first."
-  firewall_rule: "tcp 15433 from 0.0.0.0/0 and ::/0 — **this rule exists and is applied** (terraform/firewall.tf, N7, 2026-09-29, after 15432 had been exercised). Was 'NO such rule exists today' until 2026-09-30; see the 15432 entry."
-  ingress: "Traefik vcap-pg-staging entrypoint (P7-N7) -> IngressRouteTCP with tls.secretName"
-  auth: "TLS required (sslmode=verify-ca) + scram, per-person non-superuser roles"
+  owner: upayan (app owner)
+  scope: public
+  status: removed
+  reason: "The v2 Postgres workload and its Traefik route were removed on 2026-10-23. The namespace, Secrets, and PVC remain for data recovery, but nothing listens. The firewall rule was removed from the source in the same change. Apply state is unconfirmed."
+  firewall_rule: none — rule removed 2026-10-23
+  ingress: "no listener: IngressRouteTCP vcap-postgres-staging deleted 2026-10-23"
+  auth: "not served"
   temporary: false
-  expires: null
+  expires: "reopens only with a new deliberate decision"
 
 
 - port: 15434
@@ -162,7 +162,7 @@
   owner: upayan (app owner)
   scope: public — **open** (verified 2026-10-03)
   status: open
-  reason: "V1-CUTOVER. Owner asked for v1's database to be reachable directly, without Cloudflare Access. Same TLS-required contract as 15432/15433 (OD-1) — Traefik terminates TLS with a leaf whose SAN is pg-v1.upayan.dev — but this edge carries its **own self-signed CA** rather than the cluster's Postgres edge CA, because that CA's key is deliberately not in this repository and cannot sign a new leaf. CA certificate is published in docs/runbooks/vcap-v1-postgres-access.md."
+  reason: "V1-CUTOVER. Owner asked for v1's database to be reachable directly, without Cloudflare Access. Same TLS-required contract the v2 edge used (OD-1) — Traefik terminates TLS with a leaf whose SAN is pg-v1.upayan.dev — but this edge carries its **own self-signed CA** rather than the cluster's retired Postgres edge CA, because that CA's key is deliberately not in this repository and cannot sign a new leaf. CA certificate is published in docs/runbooks/vcap-v1-postgres-access.md."
   firewall_rule: "tcp 15434 from 0.0.0.0/0 and ::/0 (terraform/firewall.tf, V1-CUTOVER, 2026-10-03). Deliberately world-open per the owner's instruction; the only control on the path is the database password — PostgreSQL still has a single login role, `app_user`, which owns the database and is not a restricted per-person role."
   ingress: "Traefik vcap-pg-v1 entrypoint -> IngressRouteTCP vcap-v1-postgres (k8s/apps/vcap-v1/edge) with tls.secretName + TLSOption vcap-pg"
   auth: "TLS required (sslmode=verify-full recommended — the leaf carries DNS:pg-v1.upayan.dev and IP:138.201.157.147) + scram, role app_user"
@@ -173,7 +173,7 @@
 - port: 30532
   proto: tcp
   service: vcap-staging postgres (duplicate NodePort path)
-  k8s_service: vcap-backend-staging-postgres-external
+  k8s_service: null  # vcap-backend-staging-postgres-external was deleted 2026-09-29
   namespace: vcap-staging
   owner: unowned (kubectl-applied, not in git)
   scope: public
@@ -190,7 +190,7 @@
 - port: 30533
   proto: tcp
   service: vcap-dev postgres (duplicate NodePort path)
-  k8s_service: vcap-backend-dev-postgres-external
+  k8s_service: null  # vcap-backend-dev-postgres-external was deleted 2026-09-29
   namespace: vcap-dev
   owner: unowned (kubectl-applied, not in git)
   scope: public
@@ -277,7 +277,7 @@
   scope: public
   status: remove
   reason: "hostNetwork k3s apiserver; must only be reachable from tailnet devices per admin-plane decision"
-  firewall_rule: none today
+  firewall_rule: "tcp 6443 from 0.0.0.0/0 and ::/0. The S6 target removes this rule"
   ingress: direct (hostNetwork)
   auth: client certs / bearer tokens
   temporary: false
@@ -407,15 +407,15 @@
 - port: 7881
   proto: tcp
   service: kirro voice channel — LiveKit room server (WebRTC over TCP)
-  k8s_service: kirro-livekit-media (LoadBalancer, externalTrafficPolicy Local); signalling is kirro-livekit:7880
+  k8s_service: null
   namespace: kirro
   owner: upayan (app owner)
   scope: public
-  status: live
-  reason: "WebRTC media over TCP, the fallback for callers whose network blocks UDP (corporate wifi, some mobile carriers). Without it those callers connect and hear nothing. WebRTC media cannot traverse a Kubernetes Ingress — only the signalling WebSocket can, and that one arrives on 443 like every other *.upayan.dev host. The port is published by a `LoadBalancer` Service that k3s's ServiceLB binds on the node, **not** by `hostNetwork`: namespace `kirro` enforces Pod Security `baseline`, which rejects host namespaces and hostPorts outright, and the pod never scheduled until that was changed."
-  firewall_rule: "tcp 7881 from 0.0.0.0/0 and ::/0 — opened 2026-10-02 with the voice channel. Public by design: any browser that can reach voice-kirro.upayan.dev must also reach the media path, and the caller's address is not knowable in advance. Authorisation is the signalling room token (a JWT signed with the key pair in the kirro-voice Secret, minted by the portal only for a signed-in user), not source-IP restriction."
-  ingress: direct to the node via ServiceLB — NOT through Traefik
-  auth: room join token (LiveKit JWT); the media port itself is unauthenticated at the packet level, as WebRTC requires
+  status: removed
+  reason: "Retired with the `kirro` workloads on 2026-10-23. The namespace and its two PVCs remain for data recovery. The LiveKit Deployment and its LoadBalancer Service no longer exist, so this path is gone. The Hetzner rule was removed in the same change."
+  firewall_rule: "none — rule removed 2026-10-23"
+  ingress: none
+  auth: none
   temporary: false
   expires: null
 
@@ -423,14 +423,14 @@
 - port: 7882
   proto: udp
   service: kirro voice channel — LiveKit room server (WebRTC media)
-  k8s_service: kirro-livekit-media (LoadBalancer, externalTrafficPolicy Local)
+  k8s_service: null
   namespace: kirro
   owner: upayan (app owner)
   scope: public
-  status: live
-  reason: "The primary WebRTC media path for the voice channel. A **single muxed UDP port** rather than LiveKit's default 50000-60000 range, set as `rtc.udp_port` in the app's ConfigMap — the whole reason the internet-facing surface of this feature is two ports instead of ten thousand. Same on-the-wire reasoning as 7881, including ServiceLB rather than hostNetwork."
-  firewall_rule: "udp 7882 from 0.0.0.0/0 and ::/0 — opened 2026-10-02 with the voice channel. Public for the same reason as 7881: the browser's address is not predictable and media must reach the node directly. Same JWT-based authorisation."
-  ingress: direct to the node via ServiceLB — NOT through Traefik
-  auth: room join token (LiveKit JWT); the media port itself is unauthenticated at the packet level, as WebRTC requires
+  status: removed
+  reason: "Retired with the `kirro` workloads on 2026-10-23. The namespace and its two PVCs remain for data recovery. The LiveKit Deployment and its LoadBalancer Service no longer exist, so this path is gone. The Hetzner rule was removed in the same change."
+  firewall_rule: "none — rule removed 2026-10-23"
+  ingress: none
+  auth: none
   temporary: false
   expires: null

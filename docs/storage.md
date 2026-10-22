@@ -1,95 +1,117 @@
 # Storage
 
-Full detail: the architecture review (private, not published) §3 (dataset inventory) and §11 (storage strategy).
+This page describes the live storage layout after the 2026-10-23 retirement. Verify live state
+before you rely on any number here.
 
-## Dataset inventory (source of truth — verify against live state before trusting blindly)
+## Live data
 
-Criticality (owner-confirmed): **A** = protect (vcap-staging, meghmitra); **C** = may be lost.
+| Dataset | Namespace | Backing | Size | Backup |
+| --- | --- | --- | --- | --- |
+| Postgres `vcap-v1` | `vcap-v1` | static PV `vcap-v1-postgres-data-vps`, hostPath `/srv/data/vcap-v1-postgres`, `Retain` | 67 MB | class A logical dump |
+| Application data `vcap-v1` | `vcap-v1` | local-path PV `pvc-d4b91391-4691-43c4-9590-6bbe1ddf0ad9`, `Delete` | 15 MB | class A raw |
+| Postgres and MinIO `vcap-staging` | `vcap-staging` | static PV `vcap-backend-staging-data-vps`, hostPath `/srv/data/vcap-staging`, `Retain` | 75 MB | class A raw |
+| Postgres and MinIO `vcap-dev` | `vcap-dev` | static PV `vcap-backend-dev-data-vps`, hostPath `/srv/data/vcap-dev`, `Retain` | 70 MB | class C raw |
+| Postgres `meghmitra` | `meghmitra` | static PV `meghmitra-postgres-pvc-vps`, hostPath `/srv/data/meghmitra-postgres`, `Retain` | 206 MB | class C raw |
+| Postgres and MinIO `bitvault` | `bitvault` | local-path PVs `pvc-4f59ae33…` and `pvc-acbed98f…`, `Retain` | 48 MB + 148 KB | class C raw |
+| Mongo `rankstack` | `rankstack` | local-path PV `pvc-fb2fad5e…`, `Retain` | 509 MB | class C raw |
+| Mock service data `kirro` | `kirro` | local-path PV `pvc-623ce531…`, `Delete` | 76 MB | class C raw |
+| Voice logs `kirro` | `kirro` | local-path PV `pvc-905a8d2c…`, `Delete` | 456 KB | class C raw |
+| SQLite and model data | `adhigrahan-radar` | static PV `adhigrahan-radar-data-pvc-vps`, hostPath `/srv/data/adhigrahan-radar-data`, `Retain` | 23 MB | class C raw plus consistent `vivaad.db` copy |
+| Corpus | `meghmitra` | local-path PV `pvc-a5b3a672…`, `Retain` | 4 KB | none |
+| Grafana | `monitoring` | PV `pv-grafana`, hostPath `/var/lib/k8s-monitoring/grafana`, `Retain` | 52 MB | class C raw plus consistent `grafana.db` copy |
 
-| Dataset                              | Workload                            | Storage today                                                                                                         | Size                                                                                                            | Crit                                     | Target location                                                                                                                                                                                                                                                          | Offsite                                                                | Retention (target)                                       | Restore method                                                                                 |
-| ------------------------------------ | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| vcap-staging Postgres `vcap`         | vcap-backend-staging-postgres       | static PV on `vps-data` (S8, done 2026-09-28; old CSI volume 106574315 `Released`, kept 14 days before actual detach) | 10G / 12 MB                                                                                                     | **A**                                    | done                                                                                                                                                                                                                                                                     | yes (S4)                                                               | 15-min 48h, daily 30d, weekly 12w, monthly 12m           | [`runbooks/restore-postgres.md`](runbooks/restore-postgres.md)                                 |
-| vcap-staging MinIO                   | vcap-backend-staging-minio          | same static PV                                                                                                        | ~8 MB                                                                                                           | **A**                                    | done                                                                                                                                                                                                                                                                     | yes (S4)                                                               | same as above                                            | [`runbooks/restore-minio.md`](runbooks/restore-minio.md)                                       |
-| meghmitra Postgres `ankur` (PostGIS) | meghmitra-postgres                  | static PV on `vps-data` (S8, done 2026-09-28)                                                                         | 2G / 215 MB DB                                                                                                  | **A** (re-derivable, slow)               | done                                                                                                                                                                                                                                                                     | yes (S4)                                                               | same as above                                            | [`runbooks/restore-postgres.md`](runbooks/restore-postgres.md); fallback: re-ingest PDF corpus |
-| vcap-dev Postgres + MinIO            | vcap-backend-dev-*                  | static PV on `vps-data` (S8, done 2026-09-28; old CSI volume 106574316 `Released`, kept 14 days before actual detach) | ~72 MB                                                                                                          | C                                        | done                                                                                                                                                                                                                                                                     | yes, daily (S4)                                                        | 7 daily                                                  | [`runbooks/restore-postgres.md`](runbooks/restore-postgres.md)                                 |
-| vcap Redis ×2                        | —                                   | ephemeral (no PVC)                                                                                                    | 0 keys                                                                                                          | C                                        | ephemeral                                                                                                                                                                                                                                                                | no                                                                     | —                                                        | —                                                                                              |
-| meghmitra corpus                     | ingest Jobs                         | local-path                                                                                                            | 4 KB                                                                                                            | C                                        | root disk                                                                                                                                                                                                                                                                | no                                                                     | —                                                        | re-download                                                                                    |
-| bitvault Postgres + MinIO            | bitvault-*                          | local-path                                                                                                            | 48 MB + 244 KB                                                                                                  | C                                        | stays local-path                                                                                                                                                                                                                                                         | daily best-effort (S4)                                                 | 7 daily                                                  | best-effort                                                                                    |
-| rankstack Mongo rs0                  | rankstack-mongo                     | local-path                                                                                                            | 369 MB allocated, **0 documents** (5 collections; the 369 MB is WiredTiger preallocation — measured 2026-09-28) | C                                        | stays local-path                                                                                                                                                                                                                                                         | daily best-effort (S4, working as of 2026-09-28)                       | 7 daily                                                  | see [`runbooks/restore-mongo.md`](runbooks/restore-mongo.md)                                   |
-| rankstack Redis                      | —                                   | ephemeral (`allkeys-lru`)                                                                                             | 0 keys                                                                                                          | C                                        | ephemeral                                                                                                                                                                                                                                                                | no                                                                     | —                                                        | —                                                                                              |
-| hello-kitty api data                 | external chart                      | local-path                                                                                                            | 4.1 MB                                                                                                          | C                                        | stays                                                                                                                                                                                                                                                                    | daily best-effort (S4)                                                 | 7 daily                                                  | best-effort                                                                                    |
-| smart-home-system-api                | 0/0 replicas (KEDA scale-from-zero) | PV → **deleted** Hetzner volume 106353532; plus `default/smart-home-system-pvc` (1Gi, local-path)                     | —                                                                                                               | none                                     | clean up — plan §S8 step 5, ⚠️ after the 14-day rollback window (~2026-10-12), not S10 (corrected 2026-09-28: the app _looks_ `Healthy` only while KEDA holds it at 0; the first request scales it up and the pod sticks in `ContainerCreating` on `FailedAttachVolume`) | —                                                                      | —                                                        | —                                                                                              |
-| Grafana sqlite                       | grafana                             | hostPath `/var/lib/k8s-monitoring/grafana`                                                                            | 47 MB                                                                                                           | C (public dashboard tokens nice-to-keep) | root disk                                                                                                                                                                                                                                                                | daily (S4)                                                             | 7 daily                                                  | copy file                                                                                      |
-| Prometheus TSDB                      | prometheus                          | hostPath                                                                                                              | 3.3 GB                                                                                                          | C                                        | root disk                                                                                                                                                                                                                                                                | no                                                                     | 7d                                                       | none                                                                                           |
-| Loki chunks                          | loki                                | hostPath                                                                                                              | 5.2 GB, retention not enforced today (fix: S9)                                                                  | C                                        | root disk                                                                                                                                                                                                                                                                | no                                                                     | 7d (fix pending)                                         | none                                                                                           |
-| etcd                                 | k3s                                 | `/var/lib/rancher/k3s/server/db`                                                                                      | 523 MB                                                                                                          | infra                                    | root disk                                                                                                                                                                                                                                                                | **done (S4, 2026-09-28)** — pushed to restic with the k3s token/TLS    | 5 local, 14 offsite (`--keep-last 14 --keep-monthly 12`) | [`runbooks/recover-k3s.md`](runbooks/recover-k3s.md)                                           |
-| k3s server token + CA                | k3s                                 | `/var/lib/rancher/k3s/server/{token,tls}`                                                                             | tiny                                                                                                            | infra (required for etcd restore)        | root                                                                                                                                                                                                                                                                     | **done (S4, 2026-09-28)** — same restic snapshot as etcd, `--tag etcd` | latest + 12m                                             | [`runbooks/recover-k3s.md`](runbooks/recover-k3s.md)                                           |
+The `vcap-staging`, `vcap-dev`, `bitvault`, `rankstack`, and `kirro` workloads are gone. Their
+namespaces, PVCs, PVs, Secrets, and data remain. Their Postgres and Mongo trees are static. Do not
+start a server on a retained tree. Copy it first. See the restore runbooks.
 
-Protected (class A) data total: **~235 MB** (vcap-staging Postgres+MinIO ~20 MB, meghmitra
-Postgres 215 MB). The 20 GB `vps-data` volume leaves years of headroom.
+The `meghmitra` Postgres workload is also gone. The data remains. The `adhigrahan-radar` workload
+replaced the old meghmitra application and is live.
 
-## Current storage layout (post-S8, 2026-09-28)
+## Disposable and infrastructure data
 
-- Root disk: 75 GB ext4, ~65% used, hosts the OS, k3s, container images, the remaining class-C
-  `local-path` PersistentVolumes (bitvault, rankstack, hello-kitty), and the disposable monitoring
-  TSDBs (Prometheus/Loki).
-- `vps-data`: one Hetzner 20 GB volume, mounted by Ansible (`data_volume` role) at `/srv/data`,
-  **not** via CSI. Holds all three S8 migration targets as static, node-affinity-pinned
-  `PersistentVolume`s with `reclaimPolicy: Retain`: `vcap-backend-staging-data-vps`,
-  `vcap-backend-dev-data-vps`, `meghmitra-postgres-pvc-vps`. Combined real usage ~355 MB — years
-  of headroom on the 20 GB volume.
-- Two Hetzner 10 GB CSI volumes (`106574315` vcap-staging, `106574316` vcap-dev) are still
-  **attached but idle** — their PVs went `Bound → Released` when the old PVCs were deleted during
-  migration. Kept for 14 days (until ~2026-10-12) as a rollback safety net before actual
-  detach/deletion; still billed until then.
-- Two StorageClasses still exist: `local-path` (default, used by the remaining class-C apps) and
-  `hcloud-volumes` (no longer used by anything after S8 — the two volumes above are the last
-  consumers, and they're now static/unmanaged PVs, not fresh dynamic claims).
+| Dataset | Backing | Size | Backup |
+| --- | --- | --- | --- |
+| Prometheus TSDB | PV `pv-prometheus`, `/var/lib/k8s-monitoring/prometheus`, `Retain` | 3.8 GB | none |
+| Loki chunks | PV `pv-loki`, `/var/lib/k8s-monitoring/loki`, `Retain` | 3.4 GB | none |
+| etcd | `/var/lib/rancher/k3s/server/db` | 546 MB | restic `--tag etcd`, 5 local + 14 offsite |
+| k3s token and TLS | `/var/lib/rancher/k3s/server/{token,tls}` | 216 KB | same restic snapshot as etcd |
 
-## Hetzner CSI: present, but not load-bearing (checked 2026-09-29)
+Prometheus and Loki are disposable. Their loss does not affect an application dataset.
 
-S8's summary line says "remove hcloud CSI", and nothing depends on it any more: **`hcloud-volumes`
-has 0 PVs**. Both `smart-home-system-api` PVs bind `local-path` (`pvc-257b4f3c…`, `Retain`, and
-`pvc-85e5a579…`, `Delete`), and `vps-data` is an Ansible-mounted Hetzner volume — not a CSI claim.
-So the Hetzner API token backs no PVC, and revoking or rotating it breaks no attach. Consequences:
+## Space
 
-- The `hcloud-volumes` StorageClass and the `hetzner-csi` Application stay only so the class exists
-  for future use; neither is on any pod's critical path today. The provider token is still stored in
-  SOPS (`docs/runbooks/rotate-secrets.md`) because the CSI driver is configured with it.
-- The driver can therefore be removed without migrating a PVC — the two 10 GB volumes kept as an S8
-  rollback safety net (until ~2026-10-12) are static PVs already, not dynamic claims.
-- `hetzner-csi` is `Synced`/`Healthy` (it was synced for the first time on 2026-09-28, when
-  `hcloud-volumes` stopped being the cluster default); see the note in `.claude/CLAUDE.md`.
+Measured 2026-10-23:
 
-## Target storage strategy — S8 status: data migration done, provisioner-default change not done
+- Root disk: 75 GB ext4, 46 GB used, 27 GB free, 64%.
+- `/srv/data`: 20 GB ext4, 439 MB used, 19 GB free, 3%.
+- Class A source data: about 157 MB. This is `/srv/data/vcap-staging` (75 MB), the `vcap-v1`
+  Postgres tree (67 MB), and the `vcap-v1` application data (15 MB). The class-A snapshot also
+  contains the logical dump and globals.
+- The largest single dataset is `rankstack` at 509 MB, followed by `meghmitra-postgres` at 206 MB.
 
-- **Done**: all three class-A/C-but-real datasets (vcap-staging, vcap-dev, meghmitra Postgres)
-  moved to static PVs on `vps-data`, verified live with byte-identical row counts and working
-  public endpoints — see `changelog/2026-09.md` (2026-09-28, S8 entries) for the full mechanical
-  record, including two ArgoCD-selfHeal races hit and recovered from mid-migration (explicit
-  `volumeName` on the PVC, applied directly, is what makes the binding survive future syncs).
-- **Deliberately not done**: changing `k3s`'s `default-local-storage-path` to `/srv/data/k8s` and
-  adding a `local-retain` StorageClass, as the original design called for. This would mean editing
-  a k3s-managed built-in addon's ConfigMap (`local-path-config` in `kube-system`, owned by a
-  `k3s.cattle.io/v1 Addon` object) — a k3s upgrade or addon reconciliation could silently revert
-  it, and the actual protection goal (class-A data durable + Retain) is already fully achieved via
-  per-app static PVs without touching cluster-wide provisioner defaults. Revisit only if a good
-  reason to change the _default_ for future PVCs cluster-wide shows up.
-- Class C PVs (bitvault, rankstack, hello-kitty) **stay where they are** on the root disk — no
-  migration risk for data the owner accepts losing.
-- Disposable data stays on the root disk with hygiene limits: Prometheus retention size cap 4 GB,
-  Loki compactor retention 7 days, kubelet image GC thresholds 75%/60%, journald `SystemMaxUse=500M`.
-- The Hetzner volume is Hetzner's replicated block storage, **not a backup** — backups go to R2
-  (see [`backups.md`](backups.md)).
+## Storage configuration
 
-## Known gap: rankstack Mongo dump
+- `local-path` is the default StorageClass. It provisions under
+  `/var/lib/rancher/k3s/storage`. The StorageClass default reclaim policy is `Delete`. Individual
+  PVs can differ: the bitvault and rankstack PVs are `Retain`, while the kirro and `vcap-v1`
+  application-data PVs are `Delete`.
+- `hcloud-volumes` exists but has no PVs. No Hetzner CSI volume backs a PVC. The driver is not on a
+  critical path.
+- Static PVs use `hostPath`, not `.spec.local`. The path is in `.spec.hostPath.path`. All static
+  PVs use `Retain` and pin to node `vps`.
+- The monitoring PVs use the `hostpath-retain` class and point under `/var/lib/k8s-monitoring`.
 
-The S0 backup attempt for rankstack's Mongo could not complete (`NotPrimaryOrSecondary`, matches
-the known `InvalidReplicaSetConfig` bug tracked for S13) — see the `## 2026-09-27` entry in
-[`../changelog/2026-09.md`](../changelog/2026-09.md). Its 369 MB of data has **no verified backup
-today**; it is class C (owner accepts loss) but this is worth knowing before touching that pod.
+## Backup coverage
+
+Class A runs every 30 minutes. Class C runs daily. See [`backups.md`](backups.md) for the exact
+targets and retention.
+
+- `vcap-v1` Postgres is a logical target. It runs `pg_dump -Fc` and `pg_dumpall --globals-only`
+  inside the live pod. A raw copy of a running Postgres tree can be inconsistent.
+- `vcap-staging` is a class-A raw target. Its Postgres and MinIO data are static.
+- `vcap-v1` application data is a class-A raw target. The PVC uses `Delete`, so the backup is the
+  only copy outside the node.
+- Class C covers `vcap-dev`, `adhigrahan-radar`, `meghmitra-postgres`, both bitvault PVCs,
+  `rankstack`, both kirro PVCs, and Grafana.
+- Class C is best effort. The owner accepts loss of class-C data.
+
+Not backed up:
+
+- `meghmitra-corpus-pvc`: 4 KB and effectively empty. The corpus is re-downloadable.
+- `meghmitra-data-pvc`: its configured host path does not exist. See below.
+- Prometheus and Loki: disposable monitoring data.
+
+## Known gaps
+
+### `meghmitra-data-pvc` has no data path
+
+PV `meghmitra-data-pvc-vps` is `Bound` and claims hostPath `/srv/data/meghmitra-data`. That
+directory does not exist. The PVC has no recoverable content. Do not delete the PVC or the PV. The
+binding records the configured intent, and a future restoration may recreate the path. No backup
+target exists for it because there is no path to read.
+
+### `smart-home-system-api` is out of this inventory
+
+The deployment is scaled to zero by KEDA. It has a PVC in both its own namespace and `default`.
+This predates the retirement. Leave it alone unless a separate task takes it.
+
+## Historical notes
+
+- On 2026-09-28, `vcap-staging`, `vcap-dev`, and `meghmitra` Postgres moved to static PVs on
+  `vps-data`. The old Hetzner CSI volumes `106574315` and `106574316` are gone. The 14-day rollback
+  window closed on 2026-10-12. Do not plan around those volumes.
+- The old rankstack measurement of 369 MB allocated with 0 documents and 5 collections described
+  the running database on 2026-09-28. It is historical. The current tree is 509 MB of static
+  WiredTiger files.
+- The old `meghmitra` database size of 215 MB described the running database. The current raw tree
+  is 206 MB.
+- The class-A composition changed on 2026-10-23: `vcap-staging` and `meghmitra` logical dumps were
+  replaced by raw file targets. `vcap-v1` remains the only logical Postgres target.
 
 ## Related
 
-- [`backups.md`](backups.md) — how each dataset gets backed up (current one-off state vs. target S4)
-- [`disaster-recovery.md`](disaster-recovery.md) — what survives various loss scenarios
+- [`backups.md`](backups.md) — backup targets, retention, and restore drills
+- [`runbooks/restore-postgres.md`](runbooks/restore-postgres.md)
+- [`runbooks/restore-mongo.md`](runbooks/restore-mongo.md)
+- [`runbooks/restore-minio.md`](runbooks/restore-minio.md)
+- [`disaster-recovery.md`](disaster-recovery.md)

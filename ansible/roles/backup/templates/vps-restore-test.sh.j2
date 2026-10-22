@@ -5,29 +5,28 @@
 # it is to prove they can be turned back into usable data — and to do that **without touching
 # production**. The drill:
 #
-#   1. restores the newest class-A snapshot into a scratch directory,
-#   2. checks every Postgres dump carries the pg_dump custom-format magic,
-#   3. stands up a throwaway namespace (`restore-test`) with a scratch PostGIS pod,
-#   4. lists each dump with pg_restore, imports it, and compares the table list and row counts with
-#      the live database,
-#   5. restores the vcap-staging MinIO directory and diffs its file list against live,
+#   1. restores the newest class snapshot into a scratch directory,
+#   2. checks every logical Postgres dump that is present for the pg_dump custom-format magic,
+#   3. validates raw database trees (Postgres and Mongo) that are backed up as static files,
+#   4. lists each logical dump with pg_restore, imports it, and compares it with the live database,
+#   5. diffs each restored file tree against the live directory,
 #   6. deletes the scratch namespace,
 #   7. writes a success timestamp only if everything passed.
 #
 # Usage: vps-restore-test.sh [A|C]     (default A)
 #
 # DR-004 (2026-09-28): the class is now a parameter, so this one drill covers class C as well as class
-# A — bitvault's Postgres and the two MinIO directories. Class C is the data whose loss is
-# inconvenient rather than unrecoverable, which is exactly the assumption worth testing rather than
-# assuming.
+# A. Class C is the data whose loss is inconvenient rather than unrecoverable, which is exactly the
+# assumption worth testing rather than assuming.
 #
 # **Coverage is reported, not assumed.** This script restores `postgres` dumps, `mongo` archives and
 # `file` trees. Any target of the requested class with an engine it cannot import is printed as NOT
 # COVERED at the end of the run and does not silently count as verified.
 #
-# `mongo` was the gap until 2026-09-28 (DR-004): rankstack's archive was restored by nothing and showed
-# up as NOT COVERED, which was correct and is why the report exists. It is now restored into a scratch
-# `mongo` instance and compared collection-by-collection, the same way Postgres is.
+# On 2026-10-23 the vcap v2 and bitvault/rankstack workloads were retired. Their databases are now
+# static PVC data and the backup registry uses `engine: file`. Current snapshots therefore contain no
+# logical dumps for those datasets. The dump and archive loops below no-op, and the raw-tree checks
+# plus the file-tree diff validate the static files instead.
 #
 # The success metric is per class (`{class="A"}`), so a class-C run can never satisfy the class-A
 # staleness alert — which is exactly what would happen if both wrote the same series.
@@ -108,19 +107,55 @@ echo "+ restic restore latest --tag class-${DRILL_CLASS} --target $WORKDIR"
 restic restore latest --tag "class-${DRILL_CLASS}" --target "$WORKDIR" || fail "restic restore returned non-zero"
 
 restored_dumps=$(find "$WORKDIR$STAGING_CLASS/pg" -name '*.dump' 2>/dev/null | sort)
-[ -n "$restored_dumps" ] || fail "no Postgres dumps were restored from $STAGING_CLASS/pg"
+# A class can legitimately contain no logical dumps. vcap-staging and every class-C database are
+# retired and now backed up as raw files, so their data is validated by the raw-tree checks below.
 
 # --- 1. magic bytes: cheap, needs no client, catches truncation and empty files ----------------
 while IFS= read -r dump; do
+  [ -n "$dump" ] || continue
   magic=$(head -c 5 "$dump" 2>/dev/null || true)
   [ "$magic" = "PGDMP" ] || fail "$(basename "$dump") lacks the pg_dump custom-format magic (got '${magic}')"
 done <<< "$restored_dumps"
 
+# --- 1b. raw database trees: static PVC data is backed up file-by-file ------------------------
+# These databases have no running server. restic cannot ask them for a consistent dump, so the
+# drill checks the files that make the tree usable. The file-tree diff later proves that every
+# backed-up file still exists live.
+while IFS= read -r target; do
+  fpath="$WORKDIR$(yq -r '.path' <<<"$target")"
+  if [ ! -d "$fpath" ]; then
+    fail "raw target $(yq -r '.namespace' <<<"$target")/$(yq -r '.workload' <<<"$target") was not restored to $fpath"
+    continue
+  fi
+
+  while IFS= read -r version_file; do
+    pgdata=$(dirname "$version_file")
+    # A cluster root has a global/ directory. The base/<oid> directories also carry a PG_VERSION,
+    # but their parent is a database, not a cluster. Requiring global/ before validating avoids
+    # treating those as five broken clusters.
+    [ -d "$pgdata/global" ] || continue
+    version=$(tr -d '[:space:]' < "$version_file" 2>/dev/null || true)
+    [ "$version" = "16" ] || fail "$pgdata: PG_VERSION is '${version}', expected 16"
+    [ -s "$pgdata/global/pg_control" ] || fail "$pgdata: global/pg_control is missing or empty"
+    [ -n "$(find "$pgdata/base" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ] || \
+      fail "$pgdata: base/ is empty"
+    echo "  $pgdata: PostgreSQL $version raw data present (pg_control, base/)"
+  done < <(find "$fpath" -maxdepth 4 -type f -name PG_VERSION 2>/dev/null | sort)
+
+  while IFS= read -r wiredtiger; do
+    [ -s "$wiredtiger" ] || fail "$wiredtiger is empty"
+    mongo_dir=$(dirname "$wiredtiger")
+    [ -d "$mongo_dir/journal" ] || fail "$mongo_dir: journal/ is missing"
+    echo "  $mongo_dir: MongoDB raw data present (WiredTiger, journal/)"
+  done < <(find "$fpath" -maxdepth 4 -type f -name WiredTiger 2>/dev/null | sort)
+done < <(yq -o=json '.[] | select(.class == strenv(DRILL_CLASS) and .engine == "file")' "$TARGETS_FILE" | jq -c .)
+
 # --- 2. scratch namespace ---------------------------------------------------------------
-# One scratch pod *per target*, created from that target's own image. This matters: meghmitra runs
-# PostGIS, and importing it into a plain `postgres` image silently loses the extension-owned tables
-# (geometry_columns, spatial_ref_sys) — which is exactly what the first run of this rewrite caught.
-# The brief's "a scratch Postgres pod and a scratch PostGIS pod" is the same requirement.
+# One scratch pod *per target*, created from that target's own image. This mattered for the retired
+# meghmitra PostGIS target (removed 2026-10): importing that dump into a plain `postgres` image lost
+# the extension-owned tables (geometry_columns, spatial_ref_sys), which the first run of this rewrite
+# caught. The registry has no class-C postgres target today, so this loop is idle, but the per-target
+# image rule stays correct for any spatial dump that returns.
 scratch_pod_for() {
   # Must be a valid DNS label: lowercase alphanumerics and '-'. An underscore here is rejected by
   # the API server, and the symptom is confusing — `kubectl run` fails, the pod never exists, and
@@ -470,16 +505,20 @@ PYMONGO
   echo "  $tns/$workload: $(printf '%s\n' "$scratch_list" | grep -c .) collections restored; documents live=$live_docs restored=$rest_docs"
 done < <(yq -o=json '.[] | select(.class == strenv(DRILL_CLASS) and .engine == "mongo")' "$TARGETS_FILE" | jq -c .)
 
-# --- 4. MinIO: every restored object must exist live -----------------------------------------
+# --- 4. file trees: every restored object must exist live -------------------------------------
 while IFS= read -r target; do
   fpath=$(yq -r '.path' <<<"$target")
-  [ -d "$WORKDIR$fpath" ] || continue
+  if [ ! -d "$WORKDIR$fpath" ]; then
+    fail "file target $(yq -r '.namespace' <<<"$target")/$(yq -r '.workload' <<<"$target") was not restored to $WORKDIR$fpath"
+    continue
+  fi
   # .minio.sys/tmp/ is MinIO's scratch area (including its trash) and churns constantly, so files
   # that existed at dump time are routinely gone later. Comparing it makes the check flap for no
-  # reason; the object data and the rest of .minio.sys metadata are what must survive.
+  # reason; the object data and the rest of .minio.sys metadata are what must survive. The filter is
+  # inert for raw database trees.
   restored_list=$(cd "$WORKDIR$fpath" && find . -type f 2>/dev/null | grep -v '^\./\.minio\.sys/tmp/' | sort)
   if [ -z "$restored_list" ]; then
-    fail "MinIO restore of $fpath produced no files"
+    fail "restore of $fpath produced no files"
     continue
   fi
   live_list=$(cd "$fpath" 2>/dev/null && find . -type f 2>/dev/null | grep -v '^\./\.minio\.sys/tmp/' | sort)
@@ -499,8 +538,8 @@ while IFS= read -r target; do
     postgres|file|mongo) ;;
     *)
       uncovered=$((uncovered + 1))
-      echo "  NOT COVERED: $tns/$wl uses engine '$eng' — this drill restores postgres dumps and file"
-      echo "               trees only, so that target was NOT verified by this run."
+      echo "  NOT COVERED: $tns/$wl uses engine '$eng' — this drill restores postgres dumps, mongo"
+      echo "               archives and file trees only, so that target was NOT verified by this run."
       ;;
   esac
 done < <(yq -o=json '.[] | select(.class == strenv(DRILL_CLASS))' "$TARGETS_FILE" | jq -c .)

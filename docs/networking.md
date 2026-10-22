@@ -1,122 +1,109 @@
 # Networking
 
-Full detail: the architecture review (private, not published) §4 (port audit), §5 (security findings), §7 (target architecture). Port-by-port detail lives in
-[`ports.md`](ports.md) and [`../inventory/ports.yaml`](../inventory/ports.yaml) — this page covers
-the layers, not the individual ports.
+Port-by-port detail lives in [`ports.md`](ports.md) and
+[`../inventory/ports.yaml`](../inventory/ports.yaml).
+This page covers the layers.
 
 ## Current state
 
-- **A Hetzner Cloud Firewall is attached, and it is no longer the permissive one this paragraph
-  used to describe.** It said the firewall "allows 22, 80, 443, 6443, 5432, 5433, udp/41641 and icmp
-  from anywhere" — that was the S2 ruleset and it has been wrong since N4 and N7 landed on
-  2026-09-29. What `terraform/firewall.tf` carries today:
+A Hetzner Cloud Firewall named `vps` is attached.
+Terraform manages it as an allow-list.
+The repository declares these rules:
 
-  | Rule | Source | Note |
-  |---|---|---|
-  | tcp/22 | `0.0.0.0/0`, `::/0` | root SSH, key-only. Closing it is N5 |
-  | tcp/80, tcp/443 | Cloudflare's published ranges | N4; built from `data.cloudflare_ip_ranges`, not a hand-copied list |
-  | tcp/6443 | `0.0.0.0/0`, `::/0` | the k3s apiserver, reachable from the internet. Closing it is N5 |
-  | tcp/15432, tcp/15433 | `0.0.0.0/0`, `::/0` | the VCAP Postgres edge (N7), TLS-required |
-  | udp/41641 | `0.0.0.0/0`, `::/0` | Tailscale; must stay open for NAT traversal |
-  | icmp | `0.0.0.0/0`, `::/0` | answered |
+| Rule | Source | Note |
+|---|---|---|
+| tcp/22 | `0.0.0.0/0`, `::/0` | Root SSH, key-only. Target is Tailscale-only |
+| tcp/80, tcp/443 | Cloudflare published ranges | Built from `data.cloudflare_ip_ranges` |
+| tcp/6443 | `0.0.0.0/0`, `::/0` | k3s API server. Target is Tailscale-only |
+| tcp/15434 | `0.0.0.0/0`, `::/0` | vcap v1 Postgres edge, TLS required |
+| udp/41641 | `0.0.0.0/0`, `::/0` | Tailscale NAT traversal |
+| icmp | `0.0.0.0/0`, `::/0` | Answered |
 
-  **5432 and 5433 are gone from the ruleset** (N7 removed them). A Hetzner firewall is an allow-list,
-  so everything absent from that table is dropped. Host `iptables` INPUT policy is still `ACCEPT`,
-  `ufw` inactive, no `fail2ban` — the cloud firewall is the only packet filter, which is what N6 is
-  for.
-- **The two that matter are 22 and 6443.** Root SSH and the kube-apiserver are both reachable from
-  any address on the internet, and both are marked `remove` in the port registry. N5 closes them and
-  is blocked on a tailnet path proven from every admin machine — see `terraform/firewall.tf`, which
-  records that one workstation did not have Tailscale installed when this was last checked.
-- What the firewall *did* close, on 2026-09-28, by having no rule for them: the kubelet (10250),
-  embedded etcd's client and peer ports (2379/2380 — a leftover from the deleted 2-node era), the
-  flannel VXLAN port (8472), node-exporter (9100, which also no longer uses `hostNetwork`), and the
-  auto-allocated Traefik NodePorts (30843/30851). They are listed as `closed` rather than removed
-  because several are still bound on the public interface; the firewall, not the listener, is what
-  makes them unreachable.
-- **vcap Postgres is no longer reachable from the internet.** 5432/5433 were Traefik TCP passthrough
-  entrypoints plus **unmanaged** `IngressRouteTCP` objects and duplicate NodePort Services; the
-  NodePorts were deleted 2026-09-29 and the tenant chart's own same-namespace NetworkPolicy blocks the
-  Traefik path, so nothing answers. The target public path is **15432/15433** and it is **not open
-  yet** — the hardening it depends on (TLS, per-person non-superuser roles, a network-superuser-locking
-  `pg_hba`, alerting) does not exist.
-- Admin access (SSH, `kubectl`) is currently possible from the public IP as well as Tailscale.
-- Full port-by-port state: [`ports.md`](ports.md) "Current state" table.
+TCP `15432`, TCP `15433`, TCP `7881`, and UDP `7882` are absent from the repository.
+Their last consumers, the vcap v2 and kirro workloads, were removed on 2026-10-23.
+The live Hetzner firewall can still contain the old rules until the infrastructure path applies
+`terraform/firewall.tf`.
+Check the live rules before you report the firewall as changed.
 
-## NetworkPolicy posture (S11 — implemented 2026-09-28)
+All other ports are dropped. Host `iptables` INPUT policy is `ACCEPT`. `ufw` is inactive.
+No `fail2ban` runs. The cloud firewall is the only packet filter.
 
-Before S11 the cluster had no pod-level policy at all: only the `argocd` namespace had any
-(`argocd-*-network-policy`, shipped by the upstream chart) and `vcap-backend-*-auth` had a single
-one. k3s's bundled kube-router netpol controller does enforce `NetworkPolicy`, so these are real
-rules, not decoration.
+Closed by the absence of rules:
 
-Every app namespace now denies ingress by default. Two shapes, chosen per the app's real traffic
-path (traced live before writing anything):
+- kubelet `10250`
+- etcd client and peer `2379` and `2380`
+- flannel VXLAN `8472`
+- node-exporter `9100`
+- Traefik NodePorts
+
+Some of these ports are still bound on the host. The firewall makes them unreachable.
+
+## vcap Postgres exposure
+
+Only the `vcap-v1` Postgres is public.
+Traefik listens on TCP `15434` through entrypoint `vcap-pg-v1`.
+The `IngressRouteTCP/vcap-v1-postgres` route matches SNI `pg-v1.upayan.dev` and forwards to
+`vcap-backend-v1-postgres:5432`.
+TLS is mandatory. The route uses Secret `vcap-v1-postgres-edge-tls` and TLSOption `vcap-pg`.
+The path is reachable from any address. The database password is the only client guard.
+Authentication failures are alerted.
+See [`certificates.md`](certificates.md) and
+[`runbooks/vcap-v1-postgres-access.md`](runbooks/vcap-v1-postgres-access.md).
+
+The v2 entrypoints and routes are gone.
+The retained `vcap-dev` and `vcap-staging` data serves no traffic.
+Do not add a listener or firewall rule for retained data.
+
+## NetworkPolicy posture
+
+Every app namespace denies ingress by default. The patterns:
 
 | Shape | Namespaces | Allowed ingress |
 |---|---|---|
-| KEDA-HTTP-fronted | `cas-api`, `dj-html-nodejs-web`, `learning-docker`, `learning-qwik`, `smart-home-system-api`, `upayan-v5` | the interceptor pod in namespace `keda` (`app.kubernetes.io/component=interceptor`) only — public traffic reaches these via `k8s/platform/keda-add-ons-http-routes/`, never directly from Traefik |
-| Direct Traefik | `bandit`, `bitvault`, `cheatsheet`, `kodesphere`, `learning-react`, `meghmitra`, `prism-streaming-rag`, `rankstack`, `status-page`, `upayan-v5` (api.upayan.dev), vcap frontend `web` | Traefik (`kube-system`, `app.kubernetes.io/name=traefik`) + same-namespace pods, per workload on its real port |
-| No ingress at all | `mochi` | nothing — Discord gateway bot, outbound only, no Ingress exists |
+| KEDA HTTP fronted | `cas-api`, `dj-html-nodejs-web`, `learning-docker`, `learning-qwik`, `smart-home-system-api` | Interceptor pod in namespace `keda` only |
+| Direct Traefik | `cheatsheet`, `kodesphere`, `learning-react`, `meghmitra`, `prism-streaming-rag`, `status-page`, `vcap-v1` frontend | Traefik in `kube-system`, plus same-namespace pods |
+| No ingress | `mochi` | Nothing. Outbound Discord bot |
 
-Datastore pods (meghmitra `postgres`; bitvault `postgres`/`minio`; rankstack `mongo`/`redis`;
-rankstack/bitvault `redis`) additionally allow **same-namespace only** — none of them are
-NodePort/LoadBalancer or routed by Traefik, so nothing legitimate arrives from outside.
+Datastore pods allow same-namespace traffic only.
+The `vcap-v1` Postgres is the exception. It admits Traefik through its `IngressRouteTCP`.
 
-Two rules of thumb this design follows deliberately:
+Two rules:
 
-- Intra-namespace "from" rules use an **empty `podSelector`** (all pods in that namespace), not
-  label matching. The namespace is the trust boundary, and inside it label matching already caused
-  one silent break (the vcap API policy blocking its own frontend, 2026-09-28) plus one near-miss
-  (`app.kubernetes.io/part-of: vcap` is not applied to every pod template in that chart).
-- Policies for charts that ship none (`rankstack`, the vcap frontend) live **in this repo**
-  (`k8s/apps/rankstack/manifests/`, `k8s/apps/vcap/frontend-manifests/`) and are applied by a
-  third `sources` entry on those explicit Applications — so all cluster network policy stays in the
-  cluster's own source of truth.
+- Intra-namespace rules use an empty `podSelector`. The namespace is the trust boundary.
+- Policies for charts that ship none live in this repository, next to the app manifests.
 
-**vcap Postgres is now covered by the tenant chart's own policy.** `vcap-backend-{dev,staging}-postgres`
-(chart-owned, 2026-09-28) admits the same namespace only, and that is what closed the direct Traefik
-path to 5432/5433 once the unmanaged NodePort duplicates were deleted on 2026-09-29. There is still no
-namespace-wide default-deny in `vcap-dev`/`vcap-staging`: the chart's `worker` and Job pods carry their
-own rules, and a blanket deny written from this repo would cut traffic the chart owns. When 15432/15433
-is built, the public edge is a separate **additive**, cluster-owned ingress policy — never a revert of
-the tenant's same-namespace rule (see [`ports.md`](ports.md)).
+The retained namespaces run no pods. Their NetworkPolicies do nothing.
 
-## Target architecture (S2/S6, not yet implemented)
+## Target architecture
 
-Three layers, each with exactly one owner (see [`architecture.md`](architecture.md)):
+Three layers, one owner each:
 
-```
-Cloudflare (proxy, Full(strict), Always HTTPS)
-   │ 80/443 only, from Cloudflare's published IP ranges
+```text
+Cloudflare (proxy, Full strict, Always HTTPS)
+   │ 80/443 only, from Cloudflare ranges
 Hetzner Cloud Firewall "vps" (Terraform-managed)
-   │ allows: 80,443 (from Cloudflare ranges) · 15432,15433 (from anywhere, TLS-hardened — not yet) ·
-   │ 41641/udp (Tailscale, from anywhere) · icmp
-   │ everything else: no rule → dropped, including tcp 22 and 6443
+   │ allow: 80,443 (Cloudflare) · 15434 (world, TLS) ·
+   │        41641/udp (Tailscale) · icmp
+   │ drop: everything else, including tcp 22 and 6443
 Host (Ansible-managed)
-   │ Tailscale is the only path to SSH (22) and the k3s API (6443)/kubelet (10250)
+   │ Tailscale is the only path to SSH (22), k3s API (6443), kubelet (10250)
 ```
 
-Key decisions (owner-confirmed, OD-1):
+Decisions:
 
-- **vcap Postgres stays public on moved non-default ports — 15432 (dev), 15433 (staging)** — any IP
-  may connect, but only once the connection is hardened with TLS (private CA), per-person
-  non-superuser roles, a `pg_hba` that refuses network superuser logins, and auth-failure alerting.
-  **5432/5433 are closed permanently and are not the target; 15432/15433 are open and verified** (both
-  the firewall rule nor the Traefik entrypoint exists). See [`certificates.md`](certificates.md) for
-  the TLS side.
-- **Admin plane (SSH, k8s API, kubelet) is Tailscale-only** — no public SSH, no IP allowlist.
-  Last-resort access is the Hetzner web console / rescue system, documented in
-  [`runbooks/recover-vm.md`](runbooks/recover-vm.md).
-- The Hetzner firewall is the **only** packet filter managed by this repo's tooling — no `ufw`/
-  `nftables` rules from Ansible (they'd fight kube-proxy/kube-router); k3s-owned iptables chains
-  stay k3s-owned.
-- node-exporter loses its public exposure (bind `127.0.0.1` or drop `hostNetwork`) and the
-  duplicate NodePort/etcd/kubelet/apiserver ports are closed by the firewall.
+- **The vcap v1 Postgres stays public on TCP `15434`.** The owner accepted this exposure.
+  TLS, per-person non-superuser roles, a `pg_hba` that refuses network superuser logins, and
+  auth-failure alerting remain the hardening requirements.
+- **Admin plane is Tailscale-only.** No public SSH and no public API. Last-resort access is the
+  Hetzner console or rescue system. See [`runbooks/recover-vm.md`](runbooks/recover-vm.md).
+- **The Hetzner firewall is the only packet filter managed by this repository.** Do not add
+  `ufw` or `nftables` rules from Ansible. They conflict with kube-proxy and kube-router.
+- **No listener without a consumer.** Do not add a Traefik entrypoint, firewall rule, or
+  `IngressRouteTCP` for retained data.
 
 ## Related
 
-- [`ports.md`](ports.md) / [`../inventory/ports.yaml`](../inventory/ports.yaml) — the authoritative port-by-port registry
-- [`certificates.md`](certificates.md) — TLS design for both the web hosts and vcap Postgres
-- [`secrets.md`](secrets.md) — how the Postgres per-person credentials and TLS keys are stored
-- [`runbooks/add-port.md`](runbooks/add-port.md) — how to add a new port without creating a collision
+- [`ports.md`](ports.md) and [`../inventory/ports.yaml`](../inventory/ports.yaml)
+- [`certificates.md`](certificates.md)
+- [`secrets.md`](secrets.md)
+- [`runbooks/add-port.md`](runbooks/add-port.md)

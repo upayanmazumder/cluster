@@ -136,9 +136,9 @@ images:
 ## 4. Reference templates (copy from these)
 
 - Single-service: `k8s/apps/learning-docker/`
-- Multi-service (fe+be): `k8s/apps/bandit/`
+- Multi-service (fe+be): `k8s/apps/status-page/`
 - With PVC: `k8s/apps/smart-home-system-api/`
-- Multi sub-folder: `k8s/apps/upayan-v5/`
+- Multi sub-folder: `k8s/apps/status-page/`
 
 ## 5. DNS
 
@@ -167,7 +167,7 @@ git write-back to `main`). `kustomize0` must equal the `images[].name` in `kusto
 `.argocd/image-updater.yaml` files, which were never read and have been removed.
 
 Each element carries exactly **one** image. An app with two or more images (e.g.
-`status-page`, `meghmitra`, `upayan-v5`) or a Helm/multi-source app does not fit the list
+`status-page`, `meghmitra`) or a Helm/multi-source app does not fit the list
 template: give it an explicit `Application` in `k8s/argocd/applications/apps/` instead (copy
 `k8s/argocd/applications/apps/status-page.yaml`) and skip this step.
 

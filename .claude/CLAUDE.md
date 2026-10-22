@@ -85,7 +85,7 @@ terraform/                      Hetzner and Cloudflare infrastructure
 | `smart-home-system-api` | Fragile | Persistent volume points to a deleted volume. Volume fails to attach on scale from zero. |
 | `adhigrahan-radar` | Replaced `meghmitra` | Adhigrahan Radar replaced the legacy PostGIS Meghmitra deployment. |
 | ArgoCD sync delay | Operational | ArgoCD can report Synced at an older revision. Run hard refresh annotation to force update. |
-| `api-bandit.upayan.dev` | 502 Bad Gateway | The backend does not bind port 5000 because MongoDB Atlas rejects connection. |
+| Retired workloads | Removed 2026-10-23 | `bandit`, `bitvault`, `kirro`, `rankstack`, `upayan-v5`, and vcap v2 workloads are gone. Namespaces, Secrets, and PVCs remain for data recovery. Do not archive their GitHub repositories. |
 | Two-level domains | Edge TLS error | Cloudflare Universal SSL covers single wildcards only. Use single-level hyphenated hostnames. |
 
 ## Sub-agents available

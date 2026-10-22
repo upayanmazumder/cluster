@@ -1,20 +1,17 @@
-# S2: created PERMISSIVE — mirrors today's de-facto-open state so attaching it changes nothing
-# yet. The final locked-down ruleset is a separate, later change to this file — do not jump ahead
-# to it here.
+# VPS firewall (live).
 #
-# Postgres ports — N7 (2026-09-29). **The 5432/5433 rules are gone** (they were a leftover: nothing
-# served them, and leaving a world-open rule for a port that "must not reopen" is exactly the
-# inherited accident OD-1 exists to remove) and the target path **15432 (dev) / 15433 (staging)** is
-# opened deliberately, one port at a time.
+# Inbound: tcp/22, tcp/80, tcp/443, tcp/6443, tcp/15434, udp/41641, and icmp.
+# tcp/80 and tcp/443 use Cloudflare's published ranges when `cloudflare_only_ingress`
+# is true. tcp/15434 is the v1 Postgres edge (`vcap-pg-v1`). The retained v2 data is
+# not served.
 #
-# The hardening this depends on now exists: TLS at Traefik with a private-CA leaf (verified by
-# handshake), a non-superuser application role that the app actually uses (verified in
-# `pg_stat_activity`), a `pg_hba.conf` that refuses the bootstrap superuser over TCP (verified from a
-# non-loopback client: `FATAL: pg_hba.conf rejects connection … user "vcap_user"`), per-person
-# read-only roles, an additive NetworkPolicy admitting only Traefik, and auth-failure alerting.
+# TCP 15432/15433 (v2 Postgres) and LiveKit TCP 7881/UDP 7882 were removed on
+# 2026-10-23 with the retired workloads. This file is the source of truth.
+# `inventory/ports.yaml` records the same ports, and `scripts/check-ports.py`
+# compares the two.
 #
-# **15432 opens first, and 15433 only after 15432 has been exercised by a real client** — the plan is
-# explicit, and staging holds the real data. Add the second port as its own reviewed change.
+# The remaining S6 target is documented at the bottom of this file. It is not
+# applied.
 
 # N4 (P7): restrict 80/443 to Cloudflare's edge. Fetched, never hand-copied — a static list rots
 # silently, and a wrong range list here is a total ingress outage (Cloudflare can reach nothing, every
@@ -82,62 +79,17 @@ resource "hcloud_firewall" "vps" {
     port       = "6443"
     source_ips = ["0.0.0.0/0", "::/0"]
   }
-  # N7: the VCAP Postgres edge, dev first. Public by design (OD-1), TLS-required by the edge
-  # router. 15433 is deliberately NOT here yet: staging opens only after 15432 has been exercised.
-  rule {
-    direction  = "in"
-    protocol   = "tcp"
-    port       = "15432"
-    source_ips = ["0.0.0.0/0", "::/0"]
-  }
-  # 15433 opened 2026-09-29 after 15432 had been exercised by a real client through the edge
-  # (TLS verified against the CA, the per-person role reading and refused a write, the superuser
-  # refused) -- the plan's ordering, and staging holds the real data.
-  rule {
-    direction  = "in"
-    protocol   = "tcp"
-    port       = "15433"
-    source_ips = ["0.0.0.0/0", "::/0"]
-  }
   # V1-CUTOVER (2026-10-03): v1's public Postgres edge (`vcap-pg-v1`,
   # k8s/platform/traefik/traefik-config.yaml), owner-requested so v1's database
   # is reachable directly without Cloudflare Access. TLS-required by the router
-  # (its own CA — see k8s/apps/vcap-v1/edge/secrets.sops.yaml), same shape as
-  # the two rules above. Registered in inventory/ports.yaml, which
-  # scripts/check-ports.py cross-checks against this file.
+  # (its own CA — see k8s/apps/vcap-v1/edge/secrets.sops.yaml). Registered in
+  # inventory/ports.yaml, which scripts/check-ports.py cross-checks against this
+  # file. The v2 rules for 15432/15433 were removed on 2026-10-23 with the v2
+  # workloads. The retained v2 data is not served.
   rule {
     direction  = "in"
     protocol   = "tcp"
     port       = "15434"
-    source_ips = ["0.0.0.0/0", "::/0"]
-  }
-  # The `kirro` voice channel's WebRTC media (2026-10-02). LiveKit's self-hosted room server
-  # (k8s/apps parity: the manifests live in Cheetos-gif/kirro, namespace `kirro`) carries browser
-  # audio, and media **cannot** go through Traefik or any Kubernetes Ingress -- only the signalling
-  # WebSocket can, and that one arrives on 443 like every other `*.upayan.dev` host. So these two
-  # are reachable directly on the node's address, which is why they need rules at all.
-  #
-  # Two ports, not LiveKit's default 50000-60000 range: `rtc.udp_port` is set to a single muxed UDP
-  # port in the app's ConfigMap, deliberately, so the internet-facing surface is one UDP port plus a
-  # TCP fallback instead of ten thousand. The TCP port is the fallback for networks that block UDP
-  # (corporate wifi, some mobile carriers); without it those callers get no audio at all.
-  #
-  # Both are public by design (`source_ips = 0.0.0.0/0`): any browser that can reach
-  # voice-kirro.upayan.dev must also be able to reach the media path, and the caller's address is
-  # not knowable in advance. Authorisation is the signalling JWT -- a room join token signed with the
-  # key pair in the `kirro-voice` Secret, which the portal mints only for a signed-in user -- not
-  # source-IP restriction. Ports are registered as `live` in inventory/ports.yaml; the registry and
-  # this file are cross-checked by scripts/check-ports.py.
-  rule {
-    direction  = "in"
-    protocol   = "tcp"
-    port       = "7881"
-    source_ips = ["0.0.0.0/0", "::/0"]
-  }
-  rule {
-    direction  = "in"
-    protocol   = "udp"
-    port       = "7882"
     source_ips = ["0.0.0.0/0", "::/0"]
   }
   rule {
@@ -176,7 +128,7 @@ resource "hcloud_firewall_attachment" "vps" {
 
 # S6 target (not yet applied — tracked here as the documented next step, do not act on this
 # comment without the S6 stage's own confirmation gate):
-#   - keep the 5432/5433 from-anywhere rules — that part is permanent, owner-confirmed
+#   - keep the tcp/15434 v1 Postgres rule — owner-confirmed
 #   - restrict 80/443 source_ips to Cloudflare's published ranges
 #   - remove the plain tcp/22 and tcp/6443 rules entirely (Tailscale is the only admin path)
 #

@@ -1,8 +1,7 @@
 # The seaweedfs-it S3-identities Secret, as a separate ArgoCD multi-source
 # of the seaweedfs-it Application: the chart is Helm-sourced from a remote
 # Helm chart repository (not a git repo), and kustomize --enable-helm cannot
-# run alongside a ksops generator (same blocker as the VCAP secrets - see
-# k8s/apps/vcap/secrets/staging/kustomization.yaml).
+# run alongside a ksops generator. The VCAP charts hit the same blocker.
 #
 # SOPS-encrypted via ksops (kind: ksops) -- see secrets.sops.yaml
 apiVersion: kustomize.config.k8s.io/v1beta1

@@ -8,34 +8,13 @@ spec:
     # This is the cluster's ONLY HelmChartConfig/traefik (two would collide on name), so every Traefik
     # setting lives here.
     ports:
-      # N7: the VCAP Postgres edge. These replace `postgres-dev`(5432)/`postgres-staging`(5433),
-      # which are closed permanently (OD-1) — nothing serves them, and Traefik no longer even
-      # listens on them.
+      # The VCAP Postgres edge. Only vcap v1 remains. The v2 dev and staging
+      # listeners on 15432/15433 were removed on 2026-10-23 with the retired
+      # workloads. Their firewall rules are also removed. Do not add a listener
+      # without a matching route, firewall rule, and documented decision.
       #
-      # The listeners exist here, but **nothing outside can reach them**: the Hetzner firewall has
-      # no rule for 15432/15433. They open only once P2-08 has landed and VCAP has accepted the
-      # pg_hba / non-superuser-app-role change (the plan's N7 gate) — until then this is the
-      # cluster half, deliberately inert from the internet, and an in-cluster connection over
-      # 15432 adds TLS rather than removing any control.
-      vcap-pg-dev:
-        port: 15432
-        expose:
-          default: true
-        exposedPort: 15432
-        protocol: TCP
-      vcap-pg-staging:
-        port: 15433
-        expose:
-          default: true
-        exposedPort: 15433
-        protocol: TCP
-      # V1-CUTOVER (2026-10-03): v1's public Postgres edge. Its own port so
-      # v2's 15432/15433 stay exactly as they are for v2's return, and its own
-      # SNI (`pg-v1.upayan.dev`) so it can carry its own certificate instead of
-      # needing v2's. The firewall rule that makes it reachable from the
-      # internet is in terraform/firewall.tf and registered in
-      # inventory/ports.yaml; without that rule this listener is cluster-only,
-      # exactly like the other two were before theirs were added.
+      # The v1 listener is reachable only through the TCP 15434 rule in
+      # terraform/firewall.tf. Its SNI is `pg-v1.upayan.dev`.
       vcap-pg-v1:
         port: 15434
         expose:

@@ -1,8 +1,9 @@
 # V1-CUTOVER (2026-10-03): the public Postgres edge for v1.
 #
-# Same design as v2's (`k8s/apps/vcap/edge/staging/ingressroutetcp.yaml`) —
-# entrypoint + HostSNI + TLS selected by secretName — on its own port so v2's
-# 15432/15433 stay exactly as they are for v2's return.
+# Design: entrypoint + HostSNI + TLS selected by secretName. The retired v2
+# edge used the same shape on TCP 15432 and 15433. Those listeners, routes and
+# firewall rules were removed on 2026-10-23, so TCP 15434 is the only vcap
+# Postgres edge.
 #
 # Why `HostSNI` names a hostname rather than `*`: a client connecting *by IP*
 # sends no SNI, and Traefik then serves its default certificate (the cluster's

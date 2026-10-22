@@ -1,12 +1,18 @@
 # 0009. The VCAP Postgres instances stay publicly reachable, on moved non-default ports
 
-- **Status:** **Implemented 2026-09-29.** 5432/5433 are closed permanently (their firewall rules
-  were removed, so nothing can serve them even by accident) and **15432/15433 are open**, with the
-  compensating controls this decision called for: TLS at Traefik with a private-CA leaf, a
-  non-superuser application role that the app actually uses, a `pg_hba.conf` that refuses the
-  bootstrap superuser over TCP, per-person read-only roles, an additive ingress NetworkPolicy, and
-  auth-failure alerting. 15433 opened only after 15432 had been exercised by a real client. The
-  tenant accepted the chart-side change (OD-16).
+> **Status: SUPERSEDED on 2026-10-23.** The v2 `vcap-dev` and `vcap-staging` workloads were
+> retired. Ports `15432` and `15433` are closed, their Traefik entrypoints and routes are removed,
+> and their firewall rules are removed. Only the v1 edge on `15434` remains. See
+> [`../runbooks/vcap-postgres-access.md`](../runbooks/vcap-postgres-access.md) and
+> [`../../changelog/2026-10.md`](../../changelog/2026-10.md). The text below records the earlier
+> decision. It is not current guidance.
+
+- **Status:** **Superseded 2026-10-23.** Implemented 2026-09-29. At that time, 5432/5433 were
+  closed permanently and ports 15432/15433 were opened with TLS at Traefik, a non-superuser
+  application role, a restrictive `pg_hba.conf`, per-person read-only roles, an additive ingress
+  NetworkPolicy, and auth-failure alerting. Port 15433 opened only after 15432 had been exercised
+  by a real client. The tenant accepted the chart-side change (OD-16). The v2 workloads and their
+  ports were later retired. See the notice above.
 - **Date:** 2026-09-28 (decided); recorded 2026-09-29.
 
 ## Context

@@ -13,11 +13,9 @@
 # paragraph was not updated with it.
 #
 # Kept, because it is the reasoning that matters if the token ever dies again: without credentials,
-# anonymous pulls still work for 18 of the 23 configured images. The 5 private ones
-# (`upayanmazumder/bitvault/bitvaultd`, `vitscopesoftwareteam/vcap-staging-backend/{api,auth,worker}`,
-# `vitscopesoftwareteam/vcap-staging-frontend/web`) simply stop being tracked — they keep running,
-# being digest-pinned and pulled via their own `pull-secret`s. So removing the line is the right
-# response to a dead token, and restoring it is the right response to a live one.
+# anonymous pulls still work for the public images. The private ones simply stop being tracked --
+# they keep running, being digest-pinned and pulled via their own `pull-secret`s. So removing the
+# line is the right response to a dead token, and restoring it is the right response to a live one.
 # P6-02/P6-06: paused at 0 through the cutover (P6-02) and resumed here (P6-06).
 # It was paused because it writes commits to a git repository, and during the source switch it would
 # have been committing into the repository that is no longer the one being reconciled. The
