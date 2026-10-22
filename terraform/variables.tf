@@ -10,7 +10,7 @@ variable "hetzner_server_id" {
 # and wonder why nothing changed. `terraform validate` passes without them.
 
 variable "access_allowed_emails" {
-  description = "Cloudflare Access allow-list for the ArgoCD/Grafana admin UIs (N3; not yet applied). Empty by default — the value belongs in a git-ignored *.auto.tfvars (TF-003)."
+  description = "Cloudflare Access allow-list for the ArgoCD/Grafana admin UIs (N3, applied 2026-09-29). Empty by default — the value belongs in a git-ignored *.auto.tfvars (TF-003)."
   type        = list(string)
   # Deliberately EMPTY, and deliberately still declared (SEC-006 + TF-003 + CI-007, 2026-09-28):
   #   - the owner's address used to be the default here, which made this file one of the six
