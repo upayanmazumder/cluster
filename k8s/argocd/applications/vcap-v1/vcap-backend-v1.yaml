@@ -87,37 +87,51 @@ spec:
       prune: true
       selfHeal: true
     syncOptions:
-      # IMG-003 (2026-10-22): `ApplyOutOfSyncOnly=true` dropped. The auth
-      # image-updater alias oscillated `images.auth.tag` between a resolved
-      # digest and `""` (commits b84aa07/e93e006/589c6a6 and others, repo
-      # upayanmazumder-DevLabs/vcap-backend-v1) every time a routine GHCR
-      # manifest fetch timed out. Root cause, confirmed from controller logs
-      # (2026-10-22T12:01:02Z) and v0.17.0 source
-      # (registry-scanner/pkg/registry/registry.go GetTags, pkg/argocd/update.go
-      # UpdateApplication): with `force-update: "true"` set, a failed per-tag
-      # manifest call yields an empty tag list; GetNewestVersionFromTags falls
-      # back to returning the image's *current* tag; force-update replaces that
-      # current tag with a blank dummy BEFORE the call, so the fallback hands
-      # back the dummy and the updater writes "" as the new digest. One poll
-      # cycle later (~2 min) the fetch succeeds and the digest is restored.
-      # This never caused an outage (the chart's `vcap.image` helper falls
-      # back to `Chart.AppVersion` i.e. the mutable `:latest` tag when
-      # `tag: ""`, so the auth Deployment never got an invalid image ref —
-      # confirmed by pod `vcap-backend-v1-auth-*` showing 0 restarts across
-      # the incident).
-      # `force-update` exists only because IMG-002 observed
-      # `status.summary.images` empty for this Application, which the three
-      # other apps that DON'T need force-update (rankstack, mochi, upayan-v5)
-      # do not share. The one annotation that differs between the working set
-      # and every non-working VCAP Application is this `ApplyOutOfSyncOnly`
-      # option. Dropping it here to test whether that's the actual cause of
-      # IMG-002 — if `status.summary.images` populates after this syncs, the
-      # `force-update` annotations (and this whole class of bug) go away in a
-      # follow-up change. argocd-image-updater is pinned at v0.17.0
-      # (annotation-based config); v1.0.0+ removes annotation support
-      # entirely in favor of a cluster-wide ImageUpdater CRD migration — out
-      # of scope for this fix.
       - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    # IMG-003 (2026-10-22): `images.auth.tag` oscillated between a resolved
+    # GHCR digest and `""` (commits b84aa07/e93e006/589c6a6 and others, repo
+    # upayanmazumder-DevLabs/vcap-backend-v1) whenever a routine GHCR
+    # manifest fetch timed out. Root cause, confirmed from controller logs
+    # (2026-10-22T12:01:02Z) and argocd-image-updater v0.17.0 source
+    # (registry-scanner/pkg/registry/registry.go GetTags, pkg/argocd/update.go
+    # UpdateApplication): with `force-update: "true"` set (IMG-002), a failed
+    # per-tag manifest call yields an empty tag list; GetNewestVersionFromTags
+    # falls back to returning the image's *current* tag; force-update replaces
+    # that current tag with a blank dummy BEFORE the call, so the fallback
+    # hands back the dummy and the updater writes "" as the new digest. One
+    # poll cycle later (~2 min) the fetch succeeds and the digest is restored.
+    # This never caused an outage: the chart's `vcap.image` helper falls back
+    # to `Chart.AppVersion` (the mutable `:latest` tag) when `tag: ""`, so the
+    # auth Deployment never got an invalid image ref — confirmed by the
+    # `vcap-backend-v1-auth-*` pod showing 0 restarts across the incident.
+    #
+    # force-update exists only because IMG-002 found `status.summary.images`
+    # empty for this Application. Tested whether `ApplyOutOfSyncOnly=true` —
+    # the one syncOptions entry this Application has that rankstack/mochi/
+    # upayan-v5 (which don't need force-update) don't — was the cause: PR
+    # github.com/upayanmazumder/cluster#61 dropped it, merged, root/
+    # vcap-backend-v1 both reconciled onto the new revision (confirmed live
+    # `spec.syncPolicy.syncOptions` lost the entry), and
+    # `status.summary.images` stayed `{}` through 3 forced hard refreshes
+    # afterward. Hypothesis disproven — restored `ApplyOutOfSyncOnly=true`
+    # here (PR #62) since dropping it had no benefit and only widens the
+    # per-sync diff surface for no reason. The actual cause of the empty
+    # `status.summary.images` for VCAP Applications specifically remains
+    # unknown; ownership chains (Deployment→ReplicaSet→Pod) and resource
+    # tracking method are identical to the working Applications, ruling out
+    # the two next-likeliest causes. `force-update` stays.
+    #
+    # Not a fix candidate: upgrading argocd-image-updater past v0.17.0 —
+    # v1.0.0 removed annotation-based configuration entirely in favor of
+    # ImageUpdater CRDs, so upgrading means migrating every annotation-based
+    # Application in this cluster (10+ apps), not a scoped fix for this bug.
+    #
+    # Net: this is a self-healing, non-outage-causing upstream limitation in
+    # the frozen annotation-based codepath (fixed upstream in
+    # argocd-image-updater#1531, never released for the 0.x line). Accepted
+    # as a known, low-impact, ~2-minute git-history blip rather than chased
+    # further.
   ignoreDifferences:
     # KEDA writes /spec/replicas directly on the worker; the api HPA does the
     # same on its Deployment. Same exemption the v2 Applications carry.
