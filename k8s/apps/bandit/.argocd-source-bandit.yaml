@@ -1,3 +1,0 @@
-kustomize:
-  images:
-  - ghcr.io/upayanmazumder/bandit=ghcr.io/upayanmazumder/bandit:latest@sha256:c64daefe9bcce3006546ba88481cb4342a7661429f6dba72788c4d7bbb4ba8ad

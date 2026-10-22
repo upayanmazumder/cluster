@@ -14,22 +14,14 @@ spec:
     overhead.
   sourceRepos:
     - https://github.com/upayanmazumder/cluster
-    - https://github.com/upayanmazumder/rankstack
-    - https://github.com/Cheetos-gif/kirro
   # S11: destinations enumerated instead of `namespace: "*"`. Adding an app
   # means adding its namespace here too; a mismatch fails loudly ("namespace X
   # is not permitted in project apps") rather than deploying anywhere.
   destinations:
     - server: https://kubernetes.default.svc
-      namespace: bandit
-    - server: https://kubernetes.default.svc
-      namespace: bitvault
-    - server: https://kubernetes.default.svc
       namespace: cas-api
     - server: https://kubernetes.default.svc
       namespace: dj-html-nodejs-web
-    - server: https://kubernetes.default.svc
-      namespace: kirro
     - server: https://kubernetes.default.svc
       namespace: kodesphere
     - server: https://kubernetes.default.svc
@@ -48,13 +40,9 @@ spec:
     - server: https://kubernetes.default.svc
       namespace: prism-streaming-rag
     - server: https://kubernetes.default.svc
-      namespace: rankstack
-    - server: https://kubernetes.default.svc
       namespace: smart-home-system-api
     - server: https://kubernetes.default.svc
       namespace: status-page
-    - server: https://kubernetes.default.svc
-      namespace: upayan-v5
   clusterResourceWhitelist:
     - group: ""
       kind: Namespace

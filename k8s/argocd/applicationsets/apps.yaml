@@ -61,14 +61,6 @@ spec:
   generators:
     - list:
         elements:
-          - name: bandit
-            imageList: "app=ghcr.io/upayanmazumder/bandit:latest"
-            alias0: app
-            kustomize0: ghcr.io/upayanmazumder/bandit
-          - name: bitvault
-            imageList: "app=ghcr.io/upayanmazumder/bitvault/bitvaultd:edge"
-            alias0: app
-            kustomize0: ghcr.io/upayanmazumder/bitvault/bitvaultd
           - name: cas-api
             imageList: "api=ghcr.io/upayanmazumder/cas-api:latest"
             alias0: api

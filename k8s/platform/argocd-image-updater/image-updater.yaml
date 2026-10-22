@@ -47,18 +47,6 @@ spec:
       useAnnotations: true
     - namePattern: adhigrahan-radar
       useAnnotations: true
-    - namePattern: kirro
-      useAnnotations: true
-    - namePattern: rankstack
-      useAnnotations: true
-    - namePattern: upayan-v5
-      useAnnotations: true
-    - namePattern: vcap-backend-dev
-      useAnnotations: true
-    - namePattern: vcap-backend-staging
-      useAnnotations: true
-    - namePattern: vcap-frontend-staging
-      useAnnotations: true
     - namePattern: vcap-backend-v1
       useAnnotations: true
     - namePattern: vcap-frontend-v1
