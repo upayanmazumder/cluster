@@ -122,7 +122,7 @@ spec:
     # tracking method are identical to the working Applications, ruling out
     # the two next-likeliest causes. `force-update` stays.
     #
-    # Not a fix candidate: upgrading argocd-image-updater past v0.17.0 — 
+    # Not a fix candidate: upgrading argocd-image-updater past v0.17.0 —
     # v1.0.0 removed annotation-based configuration entirely in favor of
     # ImageUpdater CRDs, so upgrading means migrating every annotation-based
     # Application in this cluster (10+ apps), not a scoped fix for this bug.
