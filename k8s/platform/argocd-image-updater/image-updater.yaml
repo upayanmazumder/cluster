@@ -1,0 +1,55 @@
+# IMG-006 (2026-10-22): argocd-image-updater v1.x (chart 1.3.2 / app v1.3.1)
+# replaced the annotation-only controller with a CRD-based one; v1.x no
+# longer reads `argocd-image-updater.argoproj.io/*` annotations unless an
+# `ImageUpdater` CR explicitly opts an Application in via `useAnnotations:
+# true`. Every Application below already carries a working, previously-
+# verified annotation block (image-list, update-strategy, write-back-method,
+# etc.) — `useAnnotations: true` keeps reading those as-is, so none of the
+# 11 Applications needed to change. See the migration guide this was built
+# from: https://argocd-image-updater.readthedocs.io/en/stable/configuration/migration/
+#
+# `namePattern` is an exact Application name for every entry (no globs), so
+# the specificity-based conflict resolution the controller does between
+# overlapping patterns never comes into play here — each entry matches
+# exactly one Application, once.
+#
+# This CR's `metadata.namespace` (argocd) is what scopes "which namespace to
+# search for Applications" in v1.x (the old `spec.namespace` field was
+# removed in v1.4+); every Application object in this cluster lives in
+# `argocd`, so one CR here covers all of them.
+apiVersion: argocd-image-updater.argoproj.io/v1alpha1
+kind: ImageUpdater
+metadata:
+  name: annotation-based-apps
+  namespace: argocd
+  annotations:
+    # The `imageupdaters.argocd-image-updater.argoproj.io` CRD comes from the
+    # Helm source (`crds.install: true`) on the same Application, in a
+    # different `sources[]` entry with no guaranteed apply order relative to
+    # this plain-manifest source. Without this, a first sync could dry-run
+    # this CR before the CRD exists and fail with "no matches for kind".
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  applicationRefs:
+    - namePattern: mochi
+      useAnnotations: true
+    - namePattern: status-page
+      useAnnotations: true
+    - namePattern: adhigrahan-radar
+      useAnnotations: true
+    - namePattern: kirro
+      useAnnotations: true
+    - namePattern: rankstack
+      useAnnotations: true
+    - namePattern: upayan-v5
+      useAnnotations: true
+    - namePattern: vcap-backend-dev
+      useAnnotations: true
+    - namePattern: vcap-backend-staging
+      useAnnotations: true
+    - namePattern: vcap-frontend-staging
+      useAnnotations: true
+    - namePattern: vcap-backend-v1
+      useAnnotations: true
+    - namePattern: vcap-frontend-v1
+      useAnnotations: true

@@ -2,9 +2,14 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: argocd
 
-# CLUSTER-004 (2026-09-29): the app's only rendered object is the registry credential its own
+# CLUSTER-004 (2026-09-29): the app's only *generated* object is the registry credential its own
 # values.yaml points at (`credentials: pullsecret:argocd/ghcr-creds`), adopted from the cluster
 # into SOPS. `values.yaml` in this directory is not referenced here on purpose — it is consumed by
 # the Helm source's `valueFiles`, not by kustomize.
+#
+# IMG-006 (2026-10-22): `image-updater.yaml` is a plain resource (the `ImageUpdater` CR), added
+# here rather than the Helm source because it isn't chart-templated config.
 generators:
   - secret-generator.yaml
+resources:
+  - image-updater.yaml
