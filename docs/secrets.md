@@ -1,132 +1,179 @@
 # Secrets
 
-Full detail: the architecture review (private, not published) §9.
+All source `Secret` manifests under `k8s/` are SOPS-encrypted. The live vcap platform is
+`vcap-v1`. The retired v2 workloads were removed on 2026-10-23. Their namespaces, Secrets, PVCs, and
+PVs remain for recovery.
+
+Encryption is not rotation. A value that was ever committed is compromised. Rotation makes it dead.
+See [`runbooks/rotate-secrets.md`](runbooks/rotate-secrets.md).
 
 ## Current state
 
-**No plaintext `Secret` manifest remains under `k8s/`** as of 2026-09-28 (stage S5 finished): all
-21 app Secrets are in SOPS-encrypted `secrets.sops.yaml` files applied through `ksops` generators.
-The last plaintext credential home in this repo — the Helm **values** files
-(`k8s/apps/vcap/values/*.yaml`) — **closed 2026-09-29** (SEC-003). The six vcap Secrets
-(`backend-env`, `auth-env`, `pull-secret` in `vcap-dev` and `vcap-staging`) now live in
-`k8s/apps/vcap/secrets/{dev,staging}/secrets.sops.yaml`, emitted by a ksops generator that is a
-**separate multi-source** of the same Application, with `secrets.create: false` so the chart stops
-rendering them. That also resolved the blocker this file used to describe: a git-sourced Helm chart
-cannot run a ksops generator inside `kustomize --enable-helm`, but it can carry a second source that
-does. `helm-secrets` is still not installed and no longer has a use. What remains outside `k8s/`:
-`.env` files. What has **not** changed: the credential *values* are the original, unrotated ones, and
-everything ever committed (including the previous plaintext manifests, a Hetzner API token with full
-project write, a reused GitHub `gho_` token, a Cloudflare Origin CA private key, Discord tokens,
-Firebase service-account keys, a Mongo Atlas password and RSA keys) remains in git **history**.
-Encryption is not rotation.
+- **15 SOPS files** hold Kubernetes Secrets: 9 app/vcap files (7 other apps plus 2 `vcap-v1`) and 6 platform files.
+- No plaintext `Secret` manifest remains under `k8s/`.
+- The last plaintext credential path was the v2 Helm values file. That file is gone.
+- `helm-secrets` is not installed. Kubernetes Secrets use the `ksops` generator.
+- Terraform secrets use `sops exec-env`.
+- Ansible secrets use the `community.sops` vars plugin.
+- Every live workload reads its Secret from the cluster. No workload reads a git values file.
 
-**This policy is being superseded** (owner decision, 2026-09-27): secrets are moving out of
-plaintext git. `../.claude/CLAUDE.md` rule 4 and `../AGENTS.md` still describe the old
-plaintext-forever convention as the default for most apps — S5 has landed for the *tooling* and
-and, as of 2026-09-28, for **all** app Secret manifests — no plaintext `Secret` manifest remains
-under `k8s/`. The credential rotation that has to follow encryption has **not** started (see
-"Rotation order" below).
+The old v2 Secret directories `k8s/apps/vcap/secrets/` do not exist. Do not add them back.
 
-## S5 status: SOPS + age + ksops — live, and no credential is plaintext in git
+## Encryption
 
-Chosen over Sealed Secrets (its controller-held key is itself something to back up, and you can't
-read your own secrets from git) and External Secrets/Vault (needs a backing store + operator RAM
-this single-node cluster doesn't need).
+`.sops.yaml` at the repository root defines two age recipients. Either key decrypts.
 
-- **Encryption**: `.sops.yaml` (repo root) — `encrypted_regex: ^(data|stringData)$` for
-  `k8s/**/secrets.sops.yaml` Secret manifests (kind/metadata stay readable/diffable), full-value
-  encryption for `ansible/**/secrets.sops.yaml` and `terraform/secrets.enc.env`.
-- **Two age recipients** (either can decrypt) — both generated this session:
-  1. `age-ops` — the owner's workstation key, in sops' default location on the owner's own
-     machine (the exact path this doc always specified). **Still needed: an offline copy in the
-     owner's password manager** — not done yet, needs the owner's own password-manager access.
-  2. `age-cluster` — installed as the `argocd/sops-age` Secret via break-glass kubectl (never
-     committed to git, per the changelog entry for this stage).
-  Losing both means losing git-held secrets; etcd snapshots of the running cluster's live Secrets
-  remain a last resort (see [`runbooks/recover-k3s.md`](runbooks/recover-k3s.md)).
-- **Bootstrap order (learned the hard way, 2026-09-28):** the repo credentials
-  (`argocd/git-creds`, `argocd/argocd-repo-vps`, `argocd/repo-vcap-backend`,
-  `argocd/repo-vcap-frontend`) live SOPS-encrypted in
-  `k8s/platform/argocd/secret/secrets.sops.yaml`. That file is read *from the private repo ArgoCD is
-  trying to fetch*, so on a fresh cluster (or if those Secrets are ever lost) ArgoCD cannot
-  self-heal: every Application reports `ComparisonError: failed to get git client for repo
-  https://github.com/upayanmazumder/vps`. Restore them by hand first —
-  `sops -d k8s/platform/argocd/secret/secrets.sops.yaml | kubectl apply -f -` — then ArgoCD resumes
-  on its next reconcile. Same step as `runbooks/recover-vm.md`'s from-scratch bootstrap.
-- **ArgoCD**: the repo-server has `ksops` (a Kustomize exec plugin) live —
-  `k8s/platform/argocd/values.yaml` pins a real, digest-verified `viaductoss/ksops:v4.5.1`
-  initContainer that installs `ksops` + a compatible `kustomize` into the repo-server's PATH, plus
-  the `sops-age` Secret mounted into the repo-server at sops' default age-key location and
-  `configs.cm.kustomize.buildOptions: "--enable-alpha-plugins --enable-exec"` (required for
-  kustomize to run any exec plugin at all). Verified live: `k8s/apps/cheatsheet` converted from
-  a plaintext `secret.yaml` to a `ksops` generator + `secrets.sops.yaml`; the live
-  `cheatsheet-web-env` Secret's `resourceVersion`/pod were untouched by the conversion (decrypted
-  value was byte-identical to the prior plaintext) — `argocd` and `sg-cheatsheet` (now `cheatsheet`) both
-  `Synced`/`Healthy` after the repo-server rolled with the new init container.
-  **`helm-secrets` (for Helm-chart apps' values files) is not added yet** — only the
-  kustomize-based `ksops` path is live; every other app in this repo uses plain `kustomization.yaml`
-  + resource files like cheatsheet did, so this covers the common case first.
-- **Terraform** secrets: the SOPS ciphertext `secrets.enc.env` (Hetzner token, Cloudflare token,
-  tfstate S3 keys), consumed via `sops exec-env`. The rule is in `.sops.yaml`; the file **exists but
-  lives outside every repository** (OD-10, restored from the password manager) — `cluster/terraform`
-  is the sole owner and `cluster/scripts/tf.sh` reads it from that external path.
-- **Ansible** secrets: `ansible/group_vars/vps/secrets.sops.yaml` via the `community.sops` vars
-  plugin, decrypted in-flight. **In use**: it holds `restic_password` (rendered to
-  `/etc/vps-backup/env`, mode 0600) and `tailscale_auth_key` / `admin_ssh_public_key`. The R2 backup
-  credentials are deliberately **not** here — they are host-local in `/etc/vps-backup/r2.env` and
-  never pass through Ansible, SOPS or git (the `cluster`-owned offsite leg reads them only on the
-  node).
-- **GitHub access**: the reused `gho_` token is replaced — ArgoCD reads repos with read-only
-  deploy keys (per repo); image-updater's git write-back uses a fine-grained PAT scoped to exactly
-  the repos it writes (or a per-repo write deploy key). **Not started** — still using the existing
-  `gho_` token.
-- **Rotation order** (owner confirms each step; new credential deployed and verified before the
-  old one is revoked) — see [`runbooks/rotate-secrets.md`](runbooks/rotate-secrets.md) for the full
-  procedure: Hetzner API token → Cloudflare Origin CA cert/key (paired with S7) → GitHub tokens →
-  Discord webhooks/tokens → DB passwords (app + DB together, one app at a time) → Firebase SA
-  keys, Mongo Atlas password, other app secrets → Grafana admin/viewer credentials. **Not started**
-  — encryption tooling landing is the prerequisite for this, not the same step; the values are now
-  encrypted in git but are still the real, unrotated credentials.
-- **Git history rewrite**: planned only *after* rotation is fully done, each sub-step confirmed by
-  the owner. `git filter-repo` removes plaintext secret files/paths and inline secrets, verified
-  with `gitleaks` over the full history, then a confirmed `git push --force` to `main`. Rotation
-  (not the history rewrite) is what actually neutralises a leaked credential — old commits stay
-  reachable via cached SHAs/PR refs on GitHub regardless.
-- **Logging hygiene**: never `kubectl get secret -o yaml` in shared output; the Grafana
-  user-provisioning Job must not echo credentials.
-- **CI**: `scripts/check-secrets.sh` fails the build if any `secrets.sops.yaml` file is missing
-  real `sops:`+`age:` metadata (catches an accidentally-committed plaintext file under that name).
-  CI holds no decrypt key by design — the plaintext `kubectl kustomize` build step in
-  `.github/workflows/validate.yml` skips `ksops`-generator directories; converting an app is
-  verified locally instead (`kustomize build --enable-alpha-plugins --enable-exec`) before commit.
+1. `age-ops`: the owner workstation key. Keep an offline copy in the owner password manager.
+2. `age-cluster`: installed as the `argocd/sops-age` Secret. ArgoCD repo-server uses it at runtime.
+
+Losing both keys loses every git-held Secret. etcd snapshots of live Secret objects are the last
+resort. See [`backups.md`](backups.md).
+
+Rules:
+
+- Kubernetes Secrets: encrypt only `data` and `stringData`. `kind`, `metadata`, and annotations stay
+  readable and diffable.
+- Ansible and Terraform files: encrypt the full document.
+- Never commit a private age key.
+- Never print a decrypted Secret value in shared output.
+
+## ArgoCD decryption
+
+- `k8s/platform/argocd/values.yaml` sets
+  `kustomize.buildOptions: "--enable-alpha-plugins --enable-exec"`.
+- The repo-server runs a digest-pinned `viaductoss/ksops:v4.5.1` init container.
+- The init container installs `ksops` and a compatible `kustomize` into `/custom-tools`.
+- The `sops-age` Secret mounts at the default age key path.
+- Each generator lists `secrets.sops.yaml` under `files:`.
+
+Test a generator locally:
+
+```bash
+kustomize build --enable-alpha-plugins --enable-exec k8s/apps/vcap-v1/secrets
+```
+
+CI does not decrypt. `scripts/check-secrets.sh` only checks `sops:` and `age:` metadata. Test the
+plaintext build locally before a commit.
+
+## Bootstrap order
+
+On a new cluster, ArgoCD cannot read this private repository until its git credential exists. The
+same is true for every other repository credential.
+
+1. Restore `sops-age` by hand.
+2. Decrypt and apply the ArgoCD Secret file:
+   ```bash
+   sops -d k8s/platform/argocd/secret/secrets.sops.yaml | kubectl apply -f -
+   ```
+3. Apply the ArgoCD Application. ArgoCD then reads the remaining files.
+
+The old `argocd-repo-vps` Secret does not exist. Do not add it. The cluster repository uses
+`git-creds`.
 
 ## Where each secret lives
 
-Condensed from the migration plan's secret-placement table (P4-05); "never" rows are never committed
-anywhere, public or private.
+| Secret | In git | Used by |
+|---|---|---|
+| `argocd-secret` | `k8s/platform/argocd/secret/secrets.sops.yaml` | ArgoCD server |
+| `git-creds` | same file | ArgoCD access to this repository |
+| `creds-github-upayanmazumder` | same file | GitHub access under `upayanmazumder/` |
+| `repo-vcap-backend` | same file | ArgoCD access to the unused v2 staging backend repository |
+| `repo-vcap-frontend` | same file | ArgoCD access to the unused v2 staging frontend repository |
+| `repo-creds-devlabs` | `k8s/platform/argocd/secret/repo-devlabs-secrets.sops.yaml` | ArgoCD URL-prefix credential for `upayanmazumder-DevLabs` |
+| `sops-age` | never | ArgoCD repo-server |
+| `ghcr-creds` | `k8s/platform/argocd-image-updater/secrets.sops.yaml` | image-updater registry reads |
+| `git-creds-updater` | same file | image-updater git write-back over SSH |
+| `vcap-v1/backend-env` | `k8s/apps/vcap-v1/secrets/secrets.sops.yaml` | v1 API, auth, workers, Postgres |
+| `vcap-v1/auth-env` | same file | v1 auth service |
+| `vcap-v1/pull-secret` | same file | v1 image pulls |
+| `vcap-v1/vcap-v1-postgres-edge-tls` | `k8s/apps/vcap-v1/edge/secrets.sops.yaml` | v1 Postgres edge TLS |
+| `wildcard-upayan-dev-tls` | `k8s/platform/traefik/secrets.sops.yaml` | Traefik `TLSStore default` |
+| `hcloud` | `k8s/hetzner-csi/secrets.sops.yaml` | hcloud CSI, key `token` |
+| `grafana-admin-credentials` | `k8s/monitoring/secrets.sops.yaml` | Grafana admin |
+| `grafana-dev-credentials` | same file | retained dev viewer |
+| `grafana-staging-credentials` | same file | retained staging viewer |
+| `grafana-kirro-credentials` | same file | retained kirro viewer |
+| App Secrets | `k8s/apps/<app>/secrets.sops.yaml` | that application |
+| `restic_password` | `ansible/group_vars/vps/secrets.sops.yaml` | restic backup repository |
+| `admin_ssh_public_key` | same file | host access |
+| R2 backup keys | never | `/etc/vps-backup/r2.env`, mode 0600 |
+| Terraform secrets | never | external `secrets.enc.env`, read by `scripts/tf.sh` |
+| age private keys | never | owner and `argocd/sops-age` |
 
-| Secret | Off-machine (password manager + offline medium) | On the node | Generated at bootstrap | In git |
-|---|---|---|---|---|
-| age-ops private key | **yes** (DR-002) | no | no | never |
-| age-cluster private key | **yes** | as `argocd/sops-age` | no | never |
-| restic password | yes | `/etc/vps-backup/env` | no | SOPS `ansible/group_vars/vps/secrets.sops.yaml` |
-| R2 backup S3 key pair + endpoint | **yes** | `/etc/vps-backup/r2.env` | no | never |
-| `secrets.enc.env` (Hetzner/Cloudflare/tfstate) | **yes**, as a file | no | no | never (it lives outside every repository — OD-10) |
-| VCAP Postgres edge private CA key | **yes, only there** | no | once (P2-08) | never |
-| VCAP Postgres edge TLS leaf | via SOPS | in-cluster Secret `vcap-postgres-edge-tls` | once per renewal | SOPS `k8s/apps/vcap/edge/<env>/tls.sops.yaml` |
-| Grafana admin / vcap-dev / vcap-staging credentials | via SOPS (+ handed to VCAP out-of-band) | in-cluster | vcap-* generated in P1-01 | SOPS `k8s/monitoring/secrets.sops.yaml` |
-| Per-person Postgres role passwords | owner's password-manager share per person | in Postgres only | yes (P2-08) | never |
-| Tailscale auth key | no (one-off) | consumed at join | per rebuild: ephemeral, pre-authorised, revoked after join | never |
-| ArgoCD GitHub credential and `git-creds` | via SOPS | in-cluster | no | SOPS `k8s/platform/argocd/secret/secrets.sops.yaml` |
-| image-updater write-back keys (`git-creds-updater`, `git-creds-noodle`) | via SOPS | in-cluster | no | SOPS `k8s/platform/argocd-image-updater/secrets.sops.yaml`, `.../noodle/secrets.sops.yaml` |
-| `argocd-secret`, GHCR pull secrets, Origin CA TLS, app Secrets | via SOPS | in-cluster | no | SOPS |
-| k3s server token + CA | inside restic `etcd` snapshots | `/var/lib/rancher/k3s/server` | yes (no-etcd path) | never |
+The v1 repositories under `upayanmazumder-DevLabs` are public. Anonymous `git ls-remote` works. The
+`repo-creds-devlabs` entry is retained. It is not required for a public clone.
+
+`git-creds-noodle` and `git-creds-rankstack` exist only in the live cluster. They have no source
+manifest. They support retained workloads that no longer run. Do not make them a v1 prerequisite.
+
+## Retained live-only Secrets
+
+These Secrets remain in their namespaces for data recovery. No workload mounts them. They are not in
+git.
+
+| Namespace | Secrets |
+|---|---|
+| `vcap-dev` | `auth-env`, `backend-env`, `pull-secret` |
+| `vcap-staging` | `auth-env`, `backend-env`, `pull-secret` |
+| `bitvault` | `bitvault-ghcr-pull`, `bitvault-minio-env`, `bitvault-postgres-env`, `bitvaultd-env` |
+| `meghmitra` | `meghmitra-api-env`, `meghmitra-postgres-env` |
+| `rankstack` | `rankstack-api-env` |
+| `kirro` | `kirro-mock-admin`, `kirro-pinelabs`, `kirro-voice`, `kirro-whatsapp` |
+| `bandit` | `bandit-secrets` |
+| `upayan-v5` | `upayan-v5-api-env` |
+
+Keep these Secrets until the owner deletes the retained data. Rotation is unnecessary while no
+workload runs. If a dataset is restored, rotate its credential first.
+
+## GitHub access
+
+- ArgoCD uses repository-scoped credentials. This repository uses `git-creds`.
+- The two unused v2 staging repositories use `repo-vcap-backend` and `repo-vcap-frontend`.
+- The DevLabs prefix uses `repo-creds-devlabs`.
+- image-updater uses `git-creds-updater` over SSH and `ghcr-creds` for the registry.
+- The reused `gho_` token is not part of the current design.
+- `git-creds-updater` writes image digests straight to `main`. Do not add a branch step.
+- v1 image pulls use `vcap-v1/pull-secret`.
+
+`ghcr-creds` works. Do not treat the old 401 incident as current. Verify with the image-updater pod
+logs after a credential change.
+
+## Rotation
+
+Rotation order:
+
+1. Hetzner API token.
+2. Cloudflare Origin CA certificate and key.
+3. GitHub credentials.
+4. Database passwords.
+5. Discord credentials.
+6. Grafana credentials.
+
+Owner confirmation is required at each external provider step. Deploy and verify the new value
+before revoking the old value. The full procedure is in
+[`runbooks/rotate-secrets.md`](runbooks/rotate-secrets.md).
+
+Encryption alone does not reduce exposure. Git history still holds the old plaintext.
+
+## History rewrite
+
+Run a history rewrite only after rotation is complete and the owner confirms. Use `git filter-repo`,
+then scan the full history with `gitleaks`. Push with `git push --force` only after the owner confirms.
+
+The 2026-09-28 baseline was 177 findings across 35 commits. Treat that number as historical. A rewrite
+does not neutralise a leaked credential. Rotation does.
+
+## Logging hygiene
+
+- Never run `kubectl get secret -o yaml` in shared output.
+- Never echo a Grafana provisioning credential.
+- Do not show decrypted SOPS output in a terminal that records scrollback.
+- Do not paste a token into a command line. Use an environment variable or an interactive prompt.
 
 ## Related
 
-- [`runbooks/rotate-secrets.md`](runbooks/rotate-secrets.md) — the rotation procedure, still pending
-  (encryption tooling landing is not the same as rotation happening)
-- [`certificates.md`](certificates.md) — the Origin CA and private-CA keys will become SOPS Secrets
-  once rotated (S7), same as any other app secret
-- [`../.claude/skills/secrets-tls/SKILL.md`](../.claude/skills/secrets-tls/SKILL.md) — current
-  operational conventions (mostly still pre-S5; only `cheatsheet` uses the new pattern so far)
+- [`runbooks/rotate-secrets.md`](runbooks/rotate-secrets.md): rotation procedure.
+- [`certificates.md`](certificates.md): live TLS Secrets.
+- [`runbooks/recover-vm.md`](runbooks/recover-vm.md): from-scratch bootstrap.
+- [`../.claude/skills/secrets-tls/SKILL.md`](../.claude/skills/secrets-tls/SKILL.md): daily
+  conventions.

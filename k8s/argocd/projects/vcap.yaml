@@ -7,8 +7,7 @@ metadata:
   namespace: argocd
 spec:
   description: >-
-    vcap multi-environment (dev + staging) — charts in app repos; one
-    ArgoCD Application per service per environment.
+    vcap v1 — charts in the DevLabs forks; one ArgoCD Application per service.
   sourceRepos:
     - https://github.com/upayanmazumder/cluster
     # V1-CUTOVER (2026-10-03): v1's charts live in the DevLabs forks, not the
@@ -20,13 +19,8 @@ spec:
   # means adding its namespace here too; a mismatch fails loudly ("namespace
   # X is not permitted in project vcap") rather than deploying anywhere.
   destinations:
-    # V1-CUTOVER (2026-10-03): v1's own namespace. v2 keeps vcap-dev/vcap-staging
-    # (paused, not deleted) so its data and resource names stay put for its
-    # eventual redeploy.
-    - server: https://kubernetes.default.svc
-      namespace: vcap-dev
-    - server: https://kubernetes.default.svc
-      namespace: vcap-staging
+    # V1-CUTOVER (2026-10-03): v1 is the only active vcap environment. The
+    # v2 namespaces keep their PVCs and data, but no Application deploys there.
     - server: https://kubernetes.default.svc
       namespace: vcap-v1
   # ESC-001 / VCAP-002 (2026-09-29): this project granted `Namespace`,
@@ -35,13 +29,11 @@ spec:
   # with an unprotected tenant `main`, that meant a push to a tenant chart
   # could create a ClusterRoleBinding to `cluster-admin` — proven with a
   # throwaway Application on 2026-09-29. The tenant is a tenant: it deploys
-  # workloads into two namespaces and nothing else.
+  # workloads into one namespace and nothing else.
   #
-  # Empty, deliberately. Nothing the three vcap Applications render is
-  # cluster-scoped: their namespaces are declared by the `storage`
-  # Application, their static PVs by the same one, and the public Postgres
-  # edge is cluster-owned (`k8s/apps/vcap/edge/`, applied by these apps but
-  # only as namespaced IngressRouteTCPs).
+  # Empty, deliberately. Nothing in `vcap-v1` is cluster-scoped: the namespace
+  # is declared by the `storage` Application, its static PV by the same one,
+  # and the public Postgres edge is cluster-owned.
   clusterResourceWhitelist: []
   # Exactly what the chart, `frontend-manifests`, `secrets/` and `edge/`
   # render, taken from each app's live `status.resources` on 2026-09-29.
@@ -75,7 +67,7 @@ spec:
       kind: ScaledObject
     - group: keda.sh
       kind: TriggerAuthentication
-    # The cluster-owned public Postgres edge (k8s/apps/vcap/edge/<env>).
+    # The cluster-owned public Postgres edge (k8s/apps/vcap-v1/edge).
     # IngressRouteTCP only: Middleware, IngressRoute, TLSOption, ServersTransport
     # and MiddlewareTCP stay denied — the tenant has no reason to touch routing.
     #

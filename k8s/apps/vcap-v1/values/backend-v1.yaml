@@ -2,10 +2,10 @@
 # Chart: github.com/upayanmazumder-DevLabs/vcap-backend-v1 k8s/chart (vcap-backend-v1)
 # Namespace: vcap-v1  |  Cluster: Hetzner k3s
 #
-# This is v1 running in place of v2, which is paused (deployments scaled to 0,
-# Ingress removed) but NOT deleted — see k8s/argocd/applications/vcap/*.yaml
-# and changelog/2026-10.md (V1-CUTOVER). v2's Postgres data on
-# /srv/data/vcap-{dev,staging} is untouched; v1 gets its own directory and PV.
+# This is v1 running in place of v2. The v2 workloads, Services, Ingresses and
+# Applications were removed on 2026-10-23 (see changelog/2026-10.md). v2's
+# Postgres data on /srv/data/vcap-{dev,staging} remains untouched. v1 has its
+# own directory and PV.
 #
 # Release name is the Application name (`vcap-backend-v1`) so the chart's
 # `vcap.fullname` resolves to exactly that, making the Services

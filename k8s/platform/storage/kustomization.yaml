@@ -12,7 +12,7 @@ resources:
   - namespaces-tenants.yaml
   # N7: the Postgres edge's TLS option — cluster-owned, in the tenant namespaces.
   #
-  # It lives here, and not in `k8s/apps/vcap/edge/`, because the `vcap` AppProject deliberately
+  # It lives here, and not in `k8s/apps/vcap-v1/edge/`, because the `vcap` AppProject deliberately
   # allows that directory only IngressRouteTCP: "the tenant has no reason to touch routing". The
   # cluster needs a `TLSOption` (to accept libpq's ALPN offer) and the tenant does not, so the file
   # moved to the app that already owns the tenant namespaces. The tenant's routers reference it by

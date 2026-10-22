@@ -504,7 +504,7 @@ groups:
       datasourceUid: prometheus
       model:
         editorMode: code
-        expr: max by (namespace, deployment) (kube_deployment_status_replicas{namespace=~"cas-api|dj-html-nodejs-web|learning-docker|learning-qwik|smart-home-system-api|upayan-v5|kodesphere"})
+        expr: max by (namespace, deployment) (kube_deployment_status_replicas{namespace=~"cas-api|dj-html-nodejs-web|learning-docker|learning-qwik|smart-home-system-api|kodesphere"})
           > 0
         instant: true
         range: false
@@ -553,67 +553,6 @@ groups:
     annotations:
       summary: 'Low-priority app woke up (scaled from 0): {{ $labels.namespace }}/{{ $labels.deployment
         }}. Resolves automatically once it scales back to 0.'
-  - uid: vcap-staging-job-failed
-    title: VCAP staging Job failed (watchdog/orphan-sweep CronJobs)
-    condition: C
-    data:
-    - refId: A
-      relativeTimeRange:
-        from: 600
-        to: 0
-      datasourceUid: prometheus
-      model:
-        editorMode: code
-        expr: max by (namespace, job_name) (kube_job_status_failed{namespace="vcap-staging"})
-          == 1
-        instant: true
-        range: false
-        intervalMs: 1000
-        maxDataPoints: 43200
-        refId: A
-    - refId: B
-      relativeTimeRange:
-        from: 600
-        to: 0
-      datasourceUid: __expr__
-      model:
-        type: reduce
-        expression: A
-        reducer: last
-        settings:
-          mode: dropNN
-        refId: B
-    - refId: C
-      relativeTimeRange:
-        from: 600
-        to: 0
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        expression: B
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - C
-          reducer:
-            type: last
-            params: []
-        refId: C
-    for: 0m
-    noDataState: OK
-    execErrState: Error
-    labels:
-      severity: critical
-    annotations:
-      summary: 'A Job failed in vcap-staging (watchdog or orphan-sweep CronJob): {{ $labels.job_name
-        }}. Was silently failing every 5 minutes for ~20h before this alert existed
-        (2026-09-05 incident).'
   - uid: disk-root-high
     title: Root filesystem above 80% full
     condition: C
@@ -849,7 +788,7 @@ groups:
     annotations:
       summary: 'Prometheus scrape target down for 5+ minutes: job={{ $labels.job }} instance={{ $labels.instance }}'
   - uid: vps-backup-classa-stale
-    title: VPS backup (class A) has not succeeded in over an hour
+    title: VPS backup (class A) has not succeeded in over 45 minutes
     condition: C
     data:
     - refId: A
@@ -911,9 +850,9 @@ groups:
     labels:
       severity: critical
     annotations:
-      summary: 'No successful class-A backup (vcap-staging Postgres+MinIO) for over 45 minutes (three missed 15-minute runs); Check `systemctl status vps-backup-classA` and `journalctl -u vps-backup-classA` on the node.'
+      summary: 'No successful class-A backup for over 45 minutes (the class-A timer runs every 30 minutes). Class A covers the vcap-staging raw tree, the vcap-v1 Postgres dump, and the vcap-v1 application data. Check `systemctl status vps-backup-classA` and `journalctl -u vps-backup-classA` on the node.'
   - uid: vps-backup-classc-stale
-    title: VPS backup (class C) has not succeeded in over 36 hours
+    title: VPS backup (class C) has not succeeded in over 26 hours
     condition: C
     data:
     - refId: A
@@ -975,7 +914,7 @@ groups:
     labels:
       severity: warning
     annotations:
-      summary: 'No successful class-C backup (bitvault, vcap-dev, rankstack, grafana) in 26h; the timer runs daily. Check `systemctl status vps-backup-classC` on the node.'
+      summary: 'No successful class-C backup in 26h. Class C covers vcap-dev, adhigrahan-radar, meghmitra-postgres, bitvault Postgres and MinIO, rankstack Mongo, Grafana, and both kirro PVCs. The timer runs daily. Check `systemctl status vps-backup-classC` on the node.'
   - uid: vps-restic-check-stale
     title: VPS backup repository integrity check has not passed in over 10 days
     condition: C
@@ -1366,35 +1305,18 @@ groups:
   # behind — the only record of "someone tried the superuser over the network and was refused" is the
   # server's own log line, and the same is true of a password guessing run against ArgoCD.
   #
-  # State of each, stated because a provisioned alert that has never fired is not evidence. Neither
-  # has been exercised, and the reason is an observability defect rather than the rules:
-  #   - `argocd-login-failures` WAS exercised the day it was added — three deliberate wrong-password
-  #     logins against `argocd.upayan.dev` (`Invalid username or password` in the CLI was confirmed),
-  #     and then the rule's exact LogQL was run straight against Loki. It returned **zero series**.
-  #     Loki's own querier log for that query is the evidence that this is not the rule:
-  #     `status=200 returned_lines=0 store_chunks_download_time=0s chunk_refs_fetch_time=425µs` — the
-  #     **store returned no chunk references at all**, and `table_manager` reports
-  #     `distinct_users_len=0`. Meanwhile the write path is healthy
-  #     (`loki_distributor_bytes_received_total{tenant="fake"} = 522 MB`, 4804 chunks created,
-  #     12 020 files under `/loki/chunks`). So Loki accepts writes and reads back nothing, for *any*
-  #     selector, at *any* range — which means the VCAP log dashboards are inert too.
-  #   - `vcap-postgres-auth-failures` cannot be exercised for a second reason on top of that, and the
-  #     state moved on 2026-09-29 (N7): the edge now EXISTS — Traefik listens on 15432/15433, the two
-  #     `IngressRouteTCP`s carry TLS, and an additive NetworkPolicy admits Traefik to tcp/5432 on the
-  #     Postgres pods (so "the tenant NetworkPolicy admits same-namespace traffic only" is no longer
-  #     the whole story). What keeps it unexercised is the **firewall**: no rule exists for 15432/15433,
-  #     verified unreachable from an ordinary host, so no external client can attempt authentication.
-  #     An in-cluster or tailnet client could now reach the edge over TLS and fail a login; nothing does.
-  #     It is authored so the coverage exists on the day the firewall rule is added (N7's last step).
+  # Observed coverage. A provisioned alert that has never fired is not evidence.
+  # `argocd-login-failures` was exercised with deliberate wrong-password logins.
+  # Its exact LogQL returned zero series from Loki on 2026-09-30. Loki accepted
+  # writes but returned no chunks for any selector. Confirm the Loki read path
+  # before treating either log alert as coverage.
   #
-  # Still missing, and deliberately recorded rather than hand-written here: the plan's P2-08 table also
-  # asks for a **Traefik TCP connection-rate panel**. It does not exist yet — none of the
-  # `dashboard-*.json` files carry a Traefik panel — and it belongs with P2-08, which is blocked on
-  # VCAP's acceptance, not bolted on now merely so a table looks complete.
+  # `vcap-postgres-auth-failures` watches vcap-v1. The public Postgres edge is
+  # live on TCP 15434 with TLS and an additive NetworkPolicy that admits Traefik
+  # to tcp/5432. External clients can therefore attempt authentication. The
+  # rule is correctly shaped and has not observed an event.
   #
-  # **Do not read a clean alert list as coverage.** Both rules are correctly shaped and neither has
-  # observed a single event. Fixing Loki's read path is its own task and is NOT part of this
-  # migration; it is recorded in the changelog for the same day.
+  # **Do not read a clean alert list as coverage.**
   - uid: vcap-postgres-auth-failures
     title: VCAP Postgres authentication failures
     condition: C
@@ -1406,7 +1328,7 @@ groups:
         datasourceUid: loki
         model:
           editorMode: code
-          expr: sum by (namespace) (count_over_time({namespace=~"vcap-.*",container="postgres"} |~ "password authentication failed|no pg_hba.conf entry|pg_hba.conf rejects" [10m]))
+          expr: sum by (namespace) (count_over_time({namespace="vcap-v1",container="postgres"} |~ "password authentication failed|no pg_hba.conf entry|pg_hba.conf rejects" [10m]))
           queryType: instant
           refId: A
       - refId: B
@@ -1444,17 +1366,16 @@ groups:
                 params: []
           refId: C
     for: 10m
-    # `OK`, not `Alerting`: before P7-N7 there is no postgres traffic at all, so "no log lines" is the
-    # expected state and must not read as a failure. After the port opens, `NoData` would be the
-    # interesting signal — that change belongs with N7, not here.
+    # `OK`, not `Alerting`: a healthy v1 database can log no authentication failures. The
+    # `absent()` rules elsewhere cover a missing scrape or log stream.
     noDataState: OK
     execErrState: Error
     labels:
-      # Alerting, not warning: on a public Postgres port this is either a misconfigured app or someone
-      # guessing credentials, and #N7's whole design assumes pg_hba is what stops them.
+      # Critical: the v1 Postgres port is public on TCP 15434. A burst of failures is either a
+      # misconfigured client or credential guessing. `pg_hba` and the password are the only guards.
       severity: critical
     annotations:
-      summary: 'More than 50 Postgres authentication failures in 10m in vcap-{{ $labels.namespace }} — a client is misconfigured, or credentials are being guessed. Check `pg_hba` is still rejecting the superuser over the network (P2-08) and review the source addresses in the log.'
+      summary: 'More than 50 Postgres authentication failures in 10m in vcap-v1. A client is misconfigured, or credentials are being guessed. Review `pg_hba.conf` and the source addresses in the log.'
   - uid: argocd-login-failures
     title: ArgoCD login failures
     condition: C
@@ -1590,7 +1511,7 @@ groups:
     labels:
       severity: critical
     annotations:
-      summary: 'No `vps_backup_last_success_timestamp{class="A"}` series exists at all — no class-A backup has succeeded since the textfile collector was last populated, so the vcap-staging Postgres+MinIO data is unprotected. On a rebuilt node this is expected until the first run; otherwise check `systemctl status vps-backup-classA` and that /var/lib/node_exporter/textfile_collector/vps_backup_class_A.prom exists.'
+      summary: 'No `vps_backup_last_success_timestamp{class="A"}` series exists at all — no class-A backup has succeeded since the textfile collector was last populated, so the class-A data set is unprotected. On a rebuilt node this is expected until the first run; otherwise check `systemctl status vps-backup-classA` and that /var/lib/node_exporter/textfile_collector/vps_backup_class_A.prom exists.'
   - uid: vps-backup-classc-absent
     title: VPS backup (class C) metric is missing entirely
     condition: C

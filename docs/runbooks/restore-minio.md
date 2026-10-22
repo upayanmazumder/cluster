@@ -1,89 +1,141 @@
-# Runbook: restore MinIO / file-based PVC data
+# Runbook: recover retired MinIO file trees
 
-Applies to vcap-dev, vcap-staging, bitvault-minio, and hello-kitty's file-backed PersistentVolumes
-— all of which store data as plain files on their PV (no MinIO-internal replication/erasure coding
-in this single-drive deployment), so a filesystem-level tar/restore is safe and sufficient.
+This runbook applies to three retained object trees. Their MinIO workloads were retired on
+2026-10-23. The namespaces, Secrets, and PVCs remain.
 
-## Source: the automated restic repository (primary), the S0 tars (fallback)
+| Dataset | Host path | Backup class |
+|---|---|---|
+| `vcap-staging` MinIO | `/srv/data/vcap-staging/minio` | A |
+| `vcap-dev` MinIO | `/srv/data/vcap-dev/minio` | C |
+| `bitvault` MinIO | `/var/lib/rancher/k3s/storage/pvc-acbed98f-94ef-414e-a6bf-ad69882db2d7_bitvault_bitvault-minio-pvc` | C |
 
-The MinIO data directories are in the class-A/C snapshots — `/srv/data/vcap-staging/minio`,
-`/srv/data/vcap-dev/minio`, and bitvault's PVC. Class A is captured every 30 min, so this is the
-fresh copy; the S0 tars only get staler.
+The retired `hello-kitty` tree is out of scope. It has no backup target because the application no
+longer exists.
 
-```bash
-ssh vps 'set -a; . /etc/vps-backup/env; set +a; export RESTIC_REPOSITORY=/var/backups/restic
-  restic restore latest --tag class-A --target /tmp/restore'
-# → /tmp/restore/srv/data/vcap-staging/minio/…
-# Restore it onto the mount the way step 3 below does, or copy objects back through the S3 API.
-```
+All three trees use a single-drive MinIO layout. Data is stored as plain files plus metadata under
+`.minio.sys`. A file-level copy is sufficient to preserve the data. The metadata must stay with the
+objects if you want MinIO to serve them again.
 
-⚠️ Skip MinIO's own `.minio.sys/tmp/` (scratch and trash). It churns constantly, so files present at
-dump time are routinely gone later; the restore drill excludes it for exactly that reason.
+## What is backed up
 
-## Restore from an S0-style tar snapshot
+The registry in `ansible/files/backup-targets.yaml` uses `engine: file` for all three paths. Restic
+reads the directories directly. There is no MinIO server to query.
 
-```bash
-# 1. Find the PV's host path
-kubectl get pv <pv-name> -o jsonpath='{.spec.local.path}{.spec.hostPath.path}'
-# For CSI volumes (vcap-dev/staging), find the live mount instead:
-ssh vps "findmnt -rno TARGET -S /dev/<device> | grep '/mount\$'"
+- Class A runs every 30 minutes. It covers `vcap-staging`.
+- Class C runs daily. It covers `vcap-dev` and `bitvault`.
 
-# 2. Scale the workload to 0 to avoid writing over the restore
-kubectl scale deploy/<minio-deployment> -n <namespace> --replicas=0
+The snapshots also cover the rest of `/srv/data/vcap-staging` and `/srv/data/vcap-dev`. Those
+directories also hold the retained Postgres trees and `artifacts/`.
 
-# 3. Clear and restore (⚠️ destructive — confirm the target path is correct first)
-ssh vps "rm -rf <pv-host-path>/* && tar -xzf - -C <pv-host-path>" < <tar-file>.tar.gz
+Skip `.minio.sys/tmp/` when you copy by hand. It holds scratch and trash files that change
+constantly. The backup and drill code excludes it.
 
-# 4. Scale back up
-kubectl scale deploy/<minio-deployment> -n <namespace> --replicas=1
-```
+## 1. Restore from restic
 
-## Verification
+Pick the newest snapshot for the class that contains the dataset:
 
 ```bash
-# From inside the pod, using the mc client if present, or via the app's own S3 calls:
-kubectl exec -n <namespace> <minio-pod> -- mc ls local/
-# Or check object counts against what the app expects (vcap: `vcap-artifacts`, `vcap-workspace` buckets)
+ssh vps 'set -a; . /etc/vps-backup/env; . /etc/vps-backup/r2.env; set +a; \
+  restic snapshots --tag class-A --latest 1'
+ssh vps 'set -a; . /etc/vps-backup/env; . /etc/vps-backup/r2.env; set +a; \
+  restic restore latest --tag class-A --target /tmp/minio-restore'
 ```
 
-Confirm application health afterward (`kubectl get pods -n <namespace>`, app-specific smoke test)
-rather than trusting file presence alone — MinIO's own bucket metadata must also be intact for the
-server to serve objects correctly.
+For class C, replace `class-A` with `class-C`. The restored tree keeps the source path:
 
-## ⚠️ MinIO server image availability
+- `/tmp/minio-restore/srv/data/vcap-staging/minio`
+- `/tmp/minio-restore/srv/data/vcap-dev/minio`
+- `/tmp/minio-restore/var/lib/rancher/k3s/storage/pvc-acbed98f-..._bitvault_bitvault-minio-pvc`
 
-The vcap and bitvault MinIO deployments run `quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z` (or
-older pins), which **upstream no longer serves** (`401 Unauthorized` on both `docker.io` and
-`quay.io` for this tag and `:latest`). The only working copy today is what's still cached in the
-node's containerd, exported during S0 to
-`/root/pre-migration-2026-09/minio-RELEASE.2025-04-22.tar` (and the workstation copy) — see the
-`## 2026-09-27` entry in [`../../changelog/2026-09.md`](../../changelog/2026-09.md). A ghcr mirror
-push was attempted but is currently **blocked** on a missing `write:packages` token scope.
+Do not restore directly over the live tree. Restore to scratch, inspect it, then copy the files you
+need.
 
-**Do not restart, reschedule, or delete the vcap/bitvault MinIO pods** until either the ghcr
-mirror succeeds or you've confirmed the node's containerd image cache still holds this image
-(`k3s ctr -n k8s.io images ls | grep minio`) — losing that cached image with no working mirror
-means the MinIO server can't start at all, on this node or any replacement.
+## 2. Check the tree before you use it
 
-If you need to restore MinIO onto a *different* node (recovery scenario): import the tarball first
-— `k3s ctr -n k8s.io images import minio-RELEASE.2025-04-22.tar` — before scaling the deployment
-back up there.
+```bash
+du -sh /tmp/minio-restore/srv/data/vcap-staging/minio
+find /tmp/minio-restore/srv/data/vcap-staging/minio -maxdepth 1 -mindepth 1 -type d
+```
 
-## Tested, and how
+For vcap, the bucket directories are `vcap-artifacts` and `vcap-workspace`. For bitvault, the bucket
+is `bitvault`.
 
-The monthly drill **does** restore this data and diff it: it restores the newest class-A snapshot and
-checks that every restored object under `/srv/data/vcap-staging/minio` exists in the live directory
-(it does not require the reverse, because MinIO keeps writing). Measured 2026-09-28: 50 restored
-objects, all present live.
+Confirm `.minio.sys/buckets` exists. MinIO needs it to recognize the buckets. If `.minio.sys` is
+missing, the objects are still recoverable as files, but MinIO will not serve them as buckets.
 
-The S0 tars were produced from **live** directories (not checkpointed via a stopped pod), which is
-acceptable for this small, mostly-static object data per the architecture review's assessment — and
-the restic snapshots have the same property. The file-list diff above is what makes that acceptable in
-practice, rather than an assumption.
+The monthly drill validates every registered `file` tree. It restores the snapshot and diffs each
+restored tree against the live directory. That proves file presence and content. It does not start a
+MinIO server. A server-level bucket test remains a manual check.
 
-## The image, precisely
+## 3. Recover files without a server
 
-The warning below is about the **containerd cache on a live node** — a restart there still works only
-while the cache holds, and a mirror would remove the caveat entirely. A **rebuild** is already covered:
-the exported tarball is inside every restic `etcd` snapshot (added 2026-09-28) and in the S0 bundle, so
-a replacement node can always import it.
+If you need the objects, not a running MinIO:
+
+```bash
+sudo cp -a /tmp/minio-restore/srv/data/vcap-staging/minio/vcap-artifacts/. \
+  /srv/data/vcap-staging/artifacts/
+```
+
+Use the destination that the consuming application expects. Do not start a retired workload to
+serve the data.
+
+## 4. Optional: inspect with a temporary MinIO server
+
+Run MinIO only when you must validate bucket metadata. Use a **copy**, never the retained tree. Do
+not create a Service, Ingress, or firewall rule. Do not expose the data.
+
+```bash
+sudo mkdir -p /var/tmp/minio-check
+sudo cp -a /tmp/minio-restore/srv/data/vcap-staging/minio/. /var/tmp/minio-check/
+
+kubectl -n default apply -f - <<'EOF'
+apiVersion: v1
+kind: Pod
+metadata:
+  name: minio-check
+spec:
+  restartPolicy: Never
+  containers:
+    - name: minio
+      image: ghcr.io/upayanmazumder/mirror/minio:RELEASE.2025-04-22T22-12-26Z
+      command: ["minio", "server", "/data", "--address", "127.0.0.1:9000"]
+      env:
+        - name: MINIO_ROOT_USER
+          value: localcheck
+        - name: MINIO_ROOT_PASSWORD
+          value: localcheck-only
+      volumeMounts:
+        - name: data
+          mountPath: /data
+  volumes:
+    - name: data
+      hostPath:
+        path: /var/tmp/minio-check
+        type: Directory
+EOF
+
+kubectl -n default port-forward pod/minio-check 9000:9000
+```
+
+Open `http://127.0.0.1:9000` and sign in with the temporary credentials. The pod has no Service,
+no Ingress, and no public port. Delete it when the check ends:
+
+```bash
+kubectl -n default delete pod minio-check
+```
+
+## Image note
+
+The old `quay.io/minio/minio` image is not available upstream. That claim is historical. The owner
+published `ghcr.io/upayanmazumder/mirror/minio`, and no current workload uses it. Do not recreate the
+retired Deployments.
+
+An image tarball remains in the restic `etcd` snapshot at `/var/backups/images/*.tar`. Import it only
+if you need that exact image.
+
+## Do not
+
+- Do not recreate `deployment/bitvault-minio` or any retired vcap MinIO Deployment.
+- Do not scale a Deployment that no longer exists.
+- Do not expose recovered object data through a Service, Ingress, or public port.
+- Do not write into a retained tree before you have a verified copy.

@@ -8,13 +8,13 @@
 # test environment the owner wants to start/stop by hand, not a workload
 # that should self-heal indefinitely on a resource-constrained node.
 #
-# Three sources, same shape as rankstack.yaml:
+# Three sources, same shape as vcap-backend-v1.yaml:
 #   [0] the chart itself, from the Helm repository, with its values coming
 #       from a $values file reference (NOT an inline `helm.values:` block —
 #       scripts/helm-template-all.sh only resolves file references, so an
 #       inline block would never actually be rendered by this repo's CI).
 #   [1] this repo, labelled `values`, purely to resolve the $values/ prefix
-#       above — same two-source-for-one-repo shape rankstack uses.
+#       above — same two-source-for-one-repo shape vcap-backend-v1 uses.
 #   [2] this repo again, with a path, for the S3-identities Secret (ksops;
 #       cannot run alongside `kustomize --enable-helm` in the same source,
 #       same blocker as the VCAP Secrets).

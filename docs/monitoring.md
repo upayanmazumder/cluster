@@ -1,62 +1,110 @@
 # Monitoring
 
-Supersedes `../k8s/docs/10-monitoring.md`, which was **removed on 2026-09-29** (CLEAN-001) along with the
-rest of `k8s/docs/`; git history holds it. Full detail: the architecture review (private, not published) §13.
+All monitoring manifests live in `k8s/monitoring/` and are reconciled by the `monitoring`
+Application. This page describes the live stack on 2026-10-23.
 
-## Current state
+## Stack
 
-Stack: Prometheus, Grafana, Loki, Promtail, kube-state-metrics, node-exporter (~600 MiB total,
-already live in `k8s/monitoring/`).
+| Component | Kind | Data | Notes |
+|---|---|---|---|
+| Prometheus | Deployment, 1 replica | `prometheus-pvc`, 3.8 GB live | 7-day time retention, 4 GB size cap |
+| Grafana | Deployment, 1 replica | `grafana-pvc`, sqlite | `strategy: Recreate`, admin password reset from SOPS on every start |
+| Loki | Deployment, 1 replica | `loki-pvc`, 3.4 GB live | 168-hour retention through the compactor |
+| Promtail | DaemonSet | none | Ships pod logs to Loki |
+| kube-state-metrics | Deployment | none | Cluster object metrics |
+| node-exporter | DaemonSet | host textfile collector | No `hostNetwork`, not public |
 
-### The Grafana admin-password overwrite loop (root cause)
+The Grafana admin init container `reset-admin-password` runs
+`grafana cli ... admin reset-admin-password --password-from-stdin` on every start.
+The SOPS Secret is therefore authoritative. A password change in the UI diverges from git.
+It reverts on the next Grafana restart. Change the password in
+`k8s/monitoring/secrets.sops.yaml`, never in the UI.
 
-1. `grafana-admin-credentials` in git is the SOPS-held admin credential (`k8s/monitoring/secrets.sops.yaml`). Grafana only reads
-   `GF_SECURITY_ADMIN_PASSWORD` **the first time** its sqlite DB is created — after that the
-   password lives in `/var/lib/k8s-monitoring/grafana/grafana.db`.
-2. A human changes the password in the Grafana UI (it forces this away from the SOPS-held admin credential (`k8s/monitoring/secrets.sops.yaml`)) → sqlite
-   and git diverge. Live today: the git credential gets HTTP 401.
-3. `grafana-create-dev-user` is an ArgoCD **PostSync hook** that runs on every sync of the
-   `monitoring` app, authenticating with the git password → 401 → retries (`backoffLimit: 10`) →
-   the sync operation hangs.
-4. Twice (2026-08-20, 2026-08-29) the fix applied was `grafana-cli admin reset-admin-password`
-   back to the git value — which overwrote the human-set password again. The loop repeats on the
-   next `monitoring` commit.
+`grafana-create-dev-user` is an ArgoCD **PostSync hook**, not a plain Job.
+It has `backoffLimit: 2` and `activeDeadlineSeconds: 600`.
+The hook creates or updates three Viewer accounts:
 
-Ruled out as causes: ArgoCD reverting the Secret (`managedFields` show only the
-`argocd-controller` for that object), credential regeneration, and the Loki ConfigMap (it *is*
-git-tracked despite being listed in `.gitignore` — a separate, harmless doc/reality mismatch).
+- `vcap-dev@upayan.dev`
+- `vcap-staging@upayan.dev`
+- the KIRRO address from `grafana-kirro-credentials`
 
-Public dashboards today: `vcap-dev-logs` and `vcap-staging-logs` (owner keeps these — anonymous
-public dashboards streaming pod logs is an accepted risk, apps must not log secrets) plus a
-hello-kitty dashboard slated for removal (S10, hello-kitty is archived).
+The hook deletes stale accounts with the same address. It runs on every sync of the
+`monitoring` Application. The credentials remain in `k8s/monitoring/secrets.sops.yaml` because
+the retained vcap and kirro data has no other read path for their owners.
 
-## Target fixes (S9, not yet implemented)
+## Dashboards
 
-- **Fix**: git (via SOPS once S5 lands) becomes the single source of truth for the admin password.
-  A Grafana initContainer runs `grafana cli admin reset-admin-password --password-from-stdin` from
-  the Secret **on every start** (idempotent) — docs will say "change it in git, never in the UI."
-  The user-provisioning Job becomes a plain idempotent Job (not a PostSync hook), `restartPolicy:
-  Never`, `backoffLimit: 2`, pinned image, no secrets echoed. Grafana Deployment gets `strategy:
-  Recreate` (sqlite is RWO, can't do rolling updates safely).
-- Loki: enable compactor retention (7 days — currently unenforced, 5.2 GB and growing).
-- Prometheus: pin the image, add `--storage.tsdb.retention.size=4GB`.
-- node-exporter: bind `127.0.0.1` or drop `hostNetwork` (also closes the public-exposure gap, see
-  [`networking.md`](networking.md)); mount the textfile collector for backup-status metrics.
-- New scrape targets: Traefik.
-- Alert rules (all critical ones `noDataState: Alerting`): disk > 80%, inodes > 80%, memory > 90%
-  for 15m, node NotReady, pod CrashLoop/OOM, PVC/volume > 85% on `/srv/data`, ArgoCD app
-  Degraded/OutOfSync > 30m, backup age too old, `restic check` failed, cert < 14 days, Prometheus
-  target down, Loki ingestion stopped, and a Watchdog heartbeat routed to healthchecks.io (catches
-  "whole VM down," which in-VM alerting structurally cannot).
-- No dedicated Postgres/Redis/MinIO exporters planned — the DBs are tiny; pod readiness + backup
-  success + volume usage cover the actionable failure modes. Revisit only if a DB becomes
-  business-critical enough to need query-level visibility.
-- Promtail is end-of-life upstream; migrating to Grafana Alloy is a later, separate change — not
-  part of this programme.
+`grafana-dashboards` is a generated ConfigMap with 11 dashboards:
+
+- `vcap-logs`
+- `dashboard-node`
+- `dashboard-kubernetes`
+- `dashboard-loki`
+- `dashboard-argocd`
+- `dashboard-kirro-lookup`
+- `dashboard-kirro-health`
+- `dashboard-kirro-infra`
+- `dashboard-vcap-dev`
+- `dashboard-vcap-staging`
+- `dashboard-vcap-metrics`
+
+The vcap and kirro dashboards remain for retained-data support. Their workloads were removed
+on 2026-10-23. Most panels are therefore empty or static. Do not delete the dashboards in this
+change. They become useful again if a retained dataset is restored for inspection.
+
+The provider polls `/etc/grafana/dashboards`, not ConfigMaps with a `grafana_dashboard=1` label.
+A label query returns no dashboards. To inspect the provisioned set, read the generated
+ConfigMap:
+
+```bash
+kubectl -n monitoring get cm grafana-dashboards-<hash> -o json \
+  | jq -r '.data | keys[]'
+```
+
+Public dashboards are disabled (`GF_PUBLIC_DASHBOARDS_ENABLED=false`).
+Anonymous access is disabled. Basic authentication is enabled. Sign-up is disabled.
+The old public dashboard URLs no longer resolve.
+
+## Alerting
+
+Grafana provisions 29 alert rules from `grafana-alerting-rules.yaml`.
+Alert state is routed to the Discord contact point `discord-webhook`.
+The webhook URL is stored in `k8s/monitoring/secrets.sops.yaml`.
+
+| Area | Rules |
+|---|---|
+| Node | memory above 85%, CPU above 85%, root filesystem above 80%, inodes above 80%, NotReady |
+| Pods | CrashLoopBackOff, OOMKilled, image pull failure |
+| Storage | PVC above 85% full |
+| TLS | certificate expiring within 60 days |
+| ArgoCD | application Degraded, application OutOfSync, login failures |
+| KEDA | low-priority workload scaled up from zero |
+| Prometheus | scrape target down |
+| Loki | no log data for 30 minutes, metrics absent |
+| Backups | class A stale after 45 minutes, class C stale after 26 hours, etcd snapshot stale after 36 hours, offsite copy stale after 4 hours, restic check stale after 10 days, restore drill stale after 40 days |
+| Backup metrics | absent-metric rules for class A, class C, restic check, restore drill, and etcd snapshot |
+| vcap v1 | Postgres authentication failures on the public edge |
+
+The `tls-cert-expiring` rule uses Traefik's loaded-certificate metric:
+
+```promql
+(min by (sans) (traefik_tls_certs_not_after) - time()) / 86400 < 60
+```
+
+It covers the wildcard certificate. No metric exists for the vcap v1 Postgres edge leaf.
+Track that leaf by its recorded expiry date. See [`certificates.md`](certificates.md).
+
+The backup rules read metrics from
+`/var/lib/node_exporter/textfile_collector` on the host. No rule depends on healthchecks.io.
+In-VM alerting cannot report a powered-off node. That gap remains by design.
+
+## Logs
+
+Loki keeps 168 hours. Promtail ships every pod log. Loki and Promtail are not part of the
+backup set. Historical logs are not recoverable after the retention window.
 
 ## Related
 
-- [`backups.md`](backups.md) — backup-failure alerting is part of the S9 alert set
-- [`certificates.md`](certificates.md) — cert-expiry alerting
-- `k8s/docs/10-monitoring.md` — the doc this page supersedes; **deleted 2026-09-29** (CLEAN-001), so it is
-git history now, not a link (it included the old credentials table, since removed then)
+- [`backups.md`](backups.md): backup timers and thresholds
+- [`certificates.md`](certificates.md): certificate inventory
+- [`networking.md`](networking.md): public exposure

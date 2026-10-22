@@ -1,76 +1,157 @@
 # Runbook: restore rankstack's Mongo data
 
-## State as of 2026-09-28 — read this before the rest
+> **Retired workload (2026-10-23).** The `rankstack` Deployment, Services, Ingress, and replica-set
+> Job no longer exist. The namespace, Secret, and `rankstack-mongo-pvc` remain. The PVC holds a
+> static WiredTiger tree. `kubectl scale deploy/rankstack-mongo` does not work. Recover the data
+> with a temporary `mongod` pod that mounts a **copy** of the tree. Do not start `mongod` on the
+> retained PVC. Do not recreate the old Deployment or route unless you intend to serve the app
+> again.
 
-- **The replica set is healthy again**: `rs.status()` reports `rs0`, `state: PRIMARY`, one member,
-  `ok: 1`. The `InvalidReplicaSetConfig` failure the architecture review recorded is fixed (S13).
-- **The dump works**: `mongodump --archive --gzip --oplog` runs cleanly every day with the class-C
-  set, and lands in restic at
-  `/var/backups/staging/class-C/mongo/rankstack-rankstack-mongo.archive.gz`.
-- **There is nothing meaningful to restore today**: the `rankstack` database holds **0 documents**
-  (5 collections). The 369 MB `docs/storage.md` used to list for it is WiredTiger preallocation. The
-  1.4 KB archive is therefore correct, not a symptom — that is what an empty database dumps to.
-- **It has never been restore-tested.** Nothing in this procedure has been executed, unlike the class-A
-  drill. Treat it as reviewed-but-unproven, and treat the class-C data as disposable (the owner
-  accepted that loss explicitly — `docs/storage.md`).
+## What is backed up now
 
-## Getting a dump out of the repository
+Class C runs daily and includes the raw PVC:
 
-```bash
-ssh vps 'set -a; . /etc/vps-backup/env; set +a; export RESTIC_REPOSITORY=/var/backups/restic
-  restic restore latest --tag class-C --target /tmp/restore'
-# → /tmp/restore/var/backups/staging/class-C/mongo/rankstack-rankstack-mongo.archive.gz
+```text
+rankstack/rankstack-mongo
+  /var/lib/rancher/k3s/storage/pvc-fb2fad5e-3e23-46cb-af88-659ecee047f6_rankstack_rankstack-mongo-pvc
 ```
 
-Because the dump is taken with `--oplog`, a restore must replay it:
+The registry uses `engine: file`, so restic reads the tree directly. There is no `mongodump` target
+in the current registry. A snapshot may still contain old archives under
+`var/backups/staging/class-C/mongo/rankstack-rankstack-mongo.archive.gz`. Those archives are
+historical. Use the raw WiredTiger tree for current recovery.
+
+Measured 2026-10-23: the PVC holds 509 MB. The tree contains `WiredTiger` and `journal/`. The
+2026-09-28 measurement of 369 MB allocated with 0 documents and 5 collections described the old
+running database. It does not describe the current raw tree.
+
+## Restore the snapshot
+
+Run these commands on the node as root.
 
 ```bash
-POD=$(kubectl -n rankstack get pods -o name | grep mongo | head -1 | cut -d/ -f2)
-kubectl cp <archive.gz> rankstack/$POD:/tmp/restore.archive.gz
-kubectl exec -n rankstack "$POD" -- mongorestore --archive=/tmp/restore.archive.gz --gzip \
-  --oplogReplay --drop
+set -a; . /etc/vps-backup/env; set +a
+export RESTIC_REPOSITORY=/var/backups/restic
+
+restic snapshots --tag class-C
+restic restore latest --tag class-C --target /var/tmp/recover-c
 ```
 
-Note the S0 bundle holds **no** usable Mongo copy (that dump failed at the time), so restic is the only
-source for this dataset.
+The tree is at:
 
-## Target path (once S13 fixes the replica set)
+```text
+/var/tmp/recover-c/var/lib/rancher/k3s/storage/pvc-fb2fad5e-3e23-46cb-af88-659ecee047f6_rankstack_rankstack-mongo-pvc
+```
+
+Restic password: `ansible/group_vars/vps/secrets.sops.yaml`, key `restic_password`. The owner's
+password manager also holds it. Without it, the snapshot is unreadable.
+
+## Start mongod on a copy
+
+Copy the tree. Mongo writes to the data directory during startup and recovery. Never point it at
+the retained PVC.
+
+```bash
+SRC=/var/tmp/recover-c/var/lib/rancher/k3s/storage/pvc-fb2fad5e-3e23-46cb-af88-659ecee047f6_rankstack_rankstack-mongo-pvc
+DST=/var/tmp/mongo-recover
+install -d -m 700 "$DST"
+cp -a "$SRC"/. "$DST"/
+chown -R 999:999 "$DST"
+```
+
+Create a temporary pod in the `rankstack` namespace. It uses a `hostPath` volume for the copy. It
+has no Service and no Ingress.
 
 ```bash
 NS=rankstack
-POD=$(kubectl get pods -n "$NS" -o name | grep rankstack-mongo | head -1 | cut -d/ -f2)
-
-kubectl cp <archive-file>.gz "$NS"/"$POD":/tmp/restore.archive.gz
-kubectl exec -n "$NS" "$POD" -- mongorestore --archive=/tmp/restore.archive.gz --gzip --drop
-kubectl exec -n "$NS" "$POD" -- rm -f /tmp/restore.archive.gz
+kubectl apply -n "$NS" -f - <<'EOF'
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mongo-recover
+spec:
+  restartPolicy: Never
+  containers:
+    - name: mongod
+      image: mongo:7
+      command: ["mongod", "--dbpath", "/scratch", "--bind_ip", "127.0.0.1"]
+      volumeMounts:
+        - {name: data, mountPath: /scratch}
+      resources:
+        requests: {memory: 256Mi}
+        limits: {memory: 1Gi}
+  volumes:
+    - name: data
+      hostPath: {path: /var/tmp/mongo-recover, type: Directory}
+EOF
 ```
 
-Validate: `kubectl exec -n rankstack "$POD" -- mongosh --quiet --eval "rs.status().myState"` returns
-`1` (PRIMARY); `api-rankstack.upayan.dev` answers without crash-looping.
+Use the image the old Deployment used if `mongo:7` cannot read the tree. The image version must
+support the WiredTiger format. Do not run `mongod --repair` on the retained PVC.
 
-## Fallback path usable today: data-directory recovery
-
-Only viable if you have a filesystem-level tar of the PVC's data directory (e.g. taken while the
-pod was stopped, for consistency) — **not currently true**, since S0 only tarred live directories
-for datasets where the DB engine itself handled dump-based backup; rankstack Mongo was not
-tarred because it wasn't identified as needing it until the `mongodump` failure surfaced.
-
-If such a tar exists in the future:
+Wait for the server:
 
 ```bash
-NS=rankstack
-kubectl scale deploy/rankstack-mongo -n "$NS" --replicas=0
-# untar the archive onto the PV's host path (find it via `kubectl get pv <pv-name> -o yaml`, `.spec.local.path`)
-tar -xzf <mongo-data-tar>.tar.gz -C <pv-host-path>
-kubectl scale deploy/rankstack-mongo -n "$NS" --replicas=1
+until kubectl -n "$NS" exec mongo-recover -- mongosh --quiet --eval 'db.runCommand({ping:1}).ok' >/dev/null 2>&1; do
+  sleep 3
+done
 ```
 
-Then re-run the replica-set init (`rankstack-mongo-rs-init` Job) if the restored data doesn't
-already have a consistent `rs0` config.
+## Inspect and dump
 
-## When this hasn't been tested
+The database name is `rankstack` in the old deployment. Confirm it before you dump.
 
-Neither path above has been exercised end-to-end. A live restore test for Mongo specifically
-requires S13's replica-set fix to land first (the current member config is broken regardless of
-data validity) — until then, treat any Mongo recovery as best-effort, and dump the current state
-via `mongoexport`/manual queries where possible before attempting anything destructive.
+```bash
+kubectl -n "$NS" exec mongo-recover -- mongosh --quiet --eval \
+  'db.adminCommand({listDatabases:1}).databases.map(d => d.name)'
+
+kubectl -n "$NS" exec mongo-recover -- sh -c \
+  'mongodump --db rankstack --archive=/tmp/recovered.archive.gz --gzip'
+kubectl cp "$NS"/mongo-recover:/tmp/recovered.archive.gz /var/tmp/recovered.archive.gz
+```
+
+Validate the archive before you delete anything:
+
+```bash
+kubectl -n "$NS" exec mongo-recover -- sh -c \
+  'mongorestore --archive=/tmp/recovered.archive.gz --gzip --dryRun'
+```
+
+`--dryRun` lists what would restore and does not write. If the archive is valid, keep it. Do not
+import it into a live database until the app owner confirms the target.
+
+## Historical archive recovery
+
+Use this only for an old `rankstack-rankstack-mongo.archive.gz` from a snapshot. Start a scratch
+`mongo:7` instance on an **empty** directory. The old registry set `oplog: true`, so those archives
+were taken with `mongodump --oplog`. Restore them with `--oplogReplay`. Without that flag the restore
+stops at the dump start and discards the captured oplog. `--oplogReplay` works against a standalone
+scratch instance. It does not require a replica set.
+
+```bash
+kubectl -n "$NS" cp /var/tmp/old.archive.gz mongo-recover:/tmp/old.archive.gz
+kubectl -n "$NS" exec mongo-recover -- sh -c \
+  'mongorestore --archive=/tmp/old.archive.gz --gzip --oplogReplay --drop'
+```
+
+Do not add `--oplogReplay` to the current raw-tree path or to a dump that was not taken with
+`--oplog`. The current registry has no `mongo` target.
+
+The old S0 bundle has no usable Mongo copy. Restic is the only source.
+
+## Clean up
+
+```bash
+kubectl -n "$NS" delete pod mongo-recover
+rm -rf /var/tmp/mongo-recover /var/tmp/recover-c
+```
+
+Delete the temporary pod. Do not delete the PVC, the PV, or the Secret. Do not leave a `mongod`
+process on the retained tree.
+
+## Status
+
+The raw-tree check is part of the class-C restore drill on the 15th at 06:00 UTC. The drill finds
+`WiredTiger` at depth 4 and requires a non-empty file plus a sibling `journal/` directory. It does
+not run `mongod` and does not compare document counts. The last known document count (0 on
+2026-09-28) was measured against the old running database and is historical.

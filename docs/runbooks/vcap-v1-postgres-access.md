@@ -1,7 +1,7 @@
 # Runbook: VCAP v1 Postgres external access (15434)
 
 How anyone reaches v1's Postgres directly — **no Cloudflare Access, no VPN** — as requested by the
-owner on 2026-10-03 while v1 runs in place of the paused v2.
+owner on 2026-10-03. The v2 workloads were retired on 2026-10-23. v1 is the only vcap deployment.
 
 ## The contract
 
@@ -30,10 +30,10 @@ psql "host=pg-v1.upayan.dev hostaddr=138.201.157.147 port=15434 \
 Do **not** use `sslmode=require` (it accepts any certificate, so it is not verification) and do not
 disable TLS.
 
-TLS is **terminated at the edge** (Traefik), exactly as on v2's path: the client↔edge leg is
-encrypted, and Traefik then forwards plaintext TCP to the Postgres pod inside the cluster. So a
-session that successfully used `sslmode=verify-full` still reports `ssl = f` in `pg_stat_ssl` — that
-column describes the *backend's* connection, not yours. Verified 2026-10-03.
+TLS is **terminated at the edge** (Traefik). The client-to-edge leg is encrypted, and Traefik then
+forwards plaintext TCP to the Postgres pod inside the cluster. A session that successfully used
+`sslmode=verify-full` still reports `ssl = f` in `pg_stat_ssl`. That column describes the
+*backend* connection, not yours. Verified 2026-10-03.
 
 Modern clients (libpq 17+, psql 18) offer the ALPN name `postgresql`; the edge's `TLSOption`
 (`vcap-pg` in `vcap-v1`) accepts it. Without that option Traefik answers with alert 120 and the
@@ -78,16 +78,16 @@ SLA4ua5YhYYNS1GsQ4jkzIhrdo9jYqU6DQK1FioKm2vsvTag+MB5JCvIhuGEregE
 -----END CERTIFICATE-----
 ```
 
-## How this differs from v2's edge, and why
+## How this differs from v2's retired edge, and why
 
-v2's leaves (15432/15433) are signed by the cluster's single `VCAP Postgres edge CA`, whose **key is
-deliberately not in this repository** — it is what signs a replacement leaf
-(`docs/runbooks/vcap-postgres-access.md`). It is not in the cluster either. So a new leaf **cannot**
-be minted under it, and rather than bypass that boundary the v1 edge carries **its own CA**, generated
-once on the workstation for this signing operation. The CA certificate is above; the CA key is held by
-the owner like the cluster CA's.
+The retired v2 edge used one `VCAP Postgres edge CA` for its leaves on 15432 and 15433. The key for
+that CA was deliberately never committed and is not in the cluster. A new leaf could not be minted
+under it. The retired edge is documented for history in
+[`vcap-postgres-access.md`](vcap-postgres-access.md). It describes no live path. The v1 edge carries
+**its own CA**, generated once on the workstation for this signing operation. The CA certificate is
+above. The owner holds the CA key like the cluster CA's.
 
-The leaf's SANs are `DNS:pg-v1.upayan.dev` and `IP:138.201.157.147`, valid to 2028-10-01 (CA to
+The leaf's SANs are `DNS:pg-v1.upayan.dev` and `IP:138.201.157.147`, valid to 2031-10-02 (CA to
 2036-09-30). Rotation follows `docs/runbooks/rotate-certificates.md`.
 
 ## Security posture — read before relying on this

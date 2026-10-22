@@ -25,7 +25,7 @@ Read before starting: `.claude/skills/app-onboarding/SKILL.md`
 ## Reference templates
 
 - Single-service: `k8s/apps/learning-docker/`
-- Multi-service: `k8s/apps/bandit/`
+- Multi-service: `k8s/apps/status-page/`
 - With PVC: `k8s/apps/smart-home-system-api/`
 
 Read a reference before writing: e.g. `cat k8s/apps/learning-docker/deployments.yaml`

@@ -41,15 +41,15 @@ spec:
   # Apps NOT here, each with an explicit Application of its own in
   # k8s/argocd/applications/apps/ because the template above is deliberately
   # single-image (a `{{- if }}` line is not valid YAML inside this manifest):
-  #   status-page (api + app images), meghmitra (api + web), upayan-v5 (app +
-  #   api), mochi, and rankstack (Helm chart, multi-source).
+  #   status-page (api + app images), meghmitra (api + web), mochi, and
+  #   seaweedfs-it (Helm chart, multi-source).
   # The vcap apps live in the `vcap` project (external repos) --
-  # k8s/argocd/applications/vcap/.
+  # k8s/argocd/applications/vcap-v1/.
   #
   # write-back-method is `git`, not the "argocd" default: the in-cluster
   # kustomize image-override that the default writes onto the Application object
   # would be reconciled away by this set on its next pass, so digest bumps have
-  # to land in the repo (same choice as vcap-frontend-staging).
+  # to land in the repo.
   #
   # P8-03: the write-back now goes over **SSH with a deploy key** (`git-creds-updater`)
   # instead of HTTPS with the owner's PAT. Required status checks are enforced on `main`,

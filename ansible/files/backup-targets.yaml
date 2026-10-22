@@ -1,61 +1,73 @@
 # Git-tracked registry of what vps-backup.sh dumps before handing off to restic.
 # Source: docs/storage.md (per-dataset table) + docs/plans/2026-09-27-architecture-review.md §12.
 #
-# class: A (15-min interval, long retention) | C (daily, short retention, best-effort)
+# class: A (every 30 min, long retention) | C (daily, short retention, best-effort)
 # engine: postgres | mongo | file (restic reads the path directly, no dump step)
 #
-# Every `path:` below was checked against the live host on 2026-09-28, because a wrong path here does
-# not fail loudly — restic reports the missing path and the rest of the snapshot looks fine, so a
-# typo means silently backing up nothing. Re-check after any S8-style storage move.
+# Every `path:` below was checked against the live host on 2026-10-23. A wrong path does not fail
+# loudly: restic reports the missing path and the rest of the snapshot looks fine. A missing
+# `postgres` or `mongo` workload fails that target and the whole class run. Re-check after any
+# storage move.
 
 - namespace: vcap-staging
-  workload: vcap-backend-staging-postgres
+  workload: vcap-backend-staging-data
+  engine: file
+  path: /srv/data/vcap-staging # retired 2026-10-23: Postgres and MinIO workloads are gone.
+       # The PVC data is static. restic backs up the raw Postgres data dir plus MinIO files.
+       # Class A still covers this dataset. Use a temporary Postgres pod on a copy to make a
+       # logical dump before you start any process that writes to the data dir.
+  class: A
+
+# vcap-v1 is the live production stack. Back up its Postgres with a logical dump, not a raw path:
+# the server is running, so a raw file copy can be inconsistent. `running_pod()` matches the live
+# pod by name substring. The dump is written inside the pod, copied to the staging dir, then read
+# by restic. The drill imports this dump and compares it with the live database.
+- namespace: vcap-v1
+  workload: vcap-backend-v1-postgres
   engine: postgres
-  db_env_secret: backend-env # POSTGRES_DB/USER/PASSWORD keys
   class: A
 
-- namespace: vcap-staging
-  workload: vcap-backend-staging-minio
+# vcap-v1 application data: uploaded documents and API-generated files. The PVC uses local-path
+# with `Delete`, so a PVC deletion loses this tree. It is static while no writer is active; restic
+# reads it directly.
+- namespace: vcap-v1
+  workload: vcap-backend-v1-data
   engine: file
-  path: /srv/data/vcap-staging/minio # verified on the host 2026-09-28 (7.7 MB; the rest of the
-       # app's data dir is the postgres cluster, which the pg_dump target above covers logically)
+  path: /var/lib/rancher/k3s/storage/pvc-d4b91391-4691-43c4-9590-6bbe1ddf0ad9_vcap-v1_vcap-backend-v1-data
   class: A
 
-# meghmitra-postgres was removed here on 2026-09-29 (P3-M4 ran, P3-M6's repo half). The Deployment
-# was pruned when the application on those hostnames was replaced, so this target had been failing
-# every class-A run since ~21:35 — which is why `systemctl status vps-backup-classA` reported
-# `FAILED: meghmitra/meghmitra-postgres (postgres)` and the newest class-A snapshot was hours old.
-# A target whose workload does not exist does not merely back up nothing; it fails the whole run and
-# takes the datasets beside it out of coverage with it.
-
-# The replacement application on the same hostnames (Adhigrahan Radar, OD-4) keeps its SQLite store
-# at /srv/data/meghmitra-data — a *path* target, class C per OD-14. It is not a database server, so
-# there is nothing to dump logically; `sqlite:` takes a consistent copy of the one file that is being
-# written while restic reads it (the app appends an AuditLog row per request), which is the same
-# reason the grafana target below sets it. The audit log and watchlist are user-written and not
-# regenerable from the pipeline, which is why this is not class "none".
-- namespace: meghmitra
-  workload: meghmitra-api
+- namespace: vcap-dev
+  workload: vcap-backend-dev-data
   engine: file
-  path: /srv/data/meghmitra-data
+  path: /srv/data/vcap-dev # retired 2026-10-23: Postgres and MinIO workloads are gone.
+       # The PVC data is now static. Back up the raw files. See the vcap-staging note above.
+  class: C
+
+# Adhigrahan Radar replaced the application that ran on the meghmitra hostnames. Its SQLite store
+# is at /srv/data/adhigrahan-radar-data. The old meghmitra target pointed at /srv/data/meghmitra-data,
+# which does not exist. That path is the PV's configured path, but the directory was never created.
+# The live Adhigrahan tree contains `vivaad.db`, `models/`, and `fallback/`.
+# `sqlite:` takes a consistent copy of the one file that is being written while restic reads it.
+- namespace: adhigrahan-radar
+  workload: adhigrahan-radar-api
+  engine: file
+  path: /srv/data/adhigrahan-radar-data
   class: C
   sqlite: vivaad.db
-- namespace: vcap-dev
-  workload: vcap-backend-dev-postgres
-  engine: postgres
-  db_env_secret: backend-env
-  class: C
 
-- namespace: vcap-dev
-  workload: vcap-backend-dev-minio
+# meghmitra-postgres was removed from this registry on 2026-09-29 because its Deployment had been
+# pruned and the target failed every class-A run. The workload is still retired, but the raw data
+# remains on `vps-data` and is recoverable with a temporary pod. Back it up as static files.
+- namespace: meghmitra
+  workload: meghmitra-postgres
   engine: file
-  path: /srv/data/vcap-dev/minio # verified on the host 2026-09-28 (1.2 MB)
+  path: /srv/data/meghmitra-postgres
   class: C
 
 - namespace: bitvault
   workload: bitvault-postgres
-  engine: postgres
-  db_env_secret: bitvault-postgres-env
+  engine: file
+  path: /var/lib/rancher/k3s/storage/pvc-4f59ae33-a946-42a4-bb05-0c0bd458e454_bitvault_bitvault-postgres-pvc # retired 2026-10-23: raw, static Postgres data
   class: C
 
 - namespace: bitvault
@@ -66,13 +78,23 @@
 
 - namespace: rankstack
   workload: rankstack-mongo
-  engine: mongo
+  engine: file
+  path: /var/lib/rancher/k3s/storage/pvc-fb2fad5e-3e23-46cb-af88-659ecee047f6_rankstack_rankstack-mongo-pvc # retired 2026-10-23: raw, static Mongo data
   class: C
-  # rs0 was fixed in S13, so the spec's "with --oplog" now applies: it captures the oplog alongside
-  # the dump, which is what makes a replica-set dump point-in-time consistent. Verified working in
-  # the pod 2026-09-28 ("dumped 1 oplog entry"). The database itself is empty (0 documents), so this
-  # is consistency insurance rather than a data-volume concern.
-  oplog: true
+
+# kirro was retired on 2026-10-23. Both PVCs use local-path with `Delete`, so a PVC deletion loses
+# the data. The workloads are gone, so back up the static trees directly.
+- namespace: kirro
+  workload: kirro-mock-data
+  engine: file
+  path: /var/lib/rancher/k3s/storage/pvc-623ce531-383b-4960-aadd-9d0310bbe7a5_kirro_kirro-mock-data
+  class: C
+
+- namespace: kirro
+  workload: kirro-voice-logs
+  engine: file
+  path: /var/lib/rancher/k3s/storage/pvc-905a8d2c-d782-4384-9bc2-aff3941590df_kirro_kirro-voice-logs
+  class: C
 
 # hello-kitty (retired 2026-09-28) was removed here by CLEAN-002. Its PV is `Released` and the
 # directory below it belongs to an app that no longer runs — a target that backs up nothing while
@@ -84,6 +106,5 @@
   path: /var/lib/k8s-monitoring/grafana
   class: C
   # `sqlite:` makes the backup script take a consistent copy with `sqlite3 .backup` into the staging
-  # dir first (implemented 2026-09-28). restic then reads that copy, not a file Grafana may be
-  # mid-write on — a torn sqlite file is a backup that lies about being restorable.
+  # dir first. restic then reads that copy, not a file Grafana may be mid-write on.
   sqlite: grafana.db

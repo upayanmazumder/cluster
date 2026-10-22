@@ -24,15 +24,21 @@ RESTIC_REPOSITORY="{{ backup_restic_repository | default('') }}"
 
 # 0700, not the umask default. Everything that lands under $STAGING_DIR is a plaintext dump of a
 # production database -- vcap-staging's class-A student data among them -- sitting on disk between
-# the dump and the restic run. `mkdir -p` with root's usual umask makes those directories 0755, so
-# any local account, and any container with a hostPath onto them, could read the lot. The rest of
-# this role is already explicit about this (`/etc/vps-backup` is 0750, its env file 0600); the
-# staging tree was the one place that inherited whatever the umask happened to be.
+# the dump and the restic run. Any local account, and any container with a hostPath onto them,
+# could read a world-readable tree. The rest of this role is already explicit about this
+# (`/etc/vps-backup` is 0750, its env file 0600).
 #
 # `install -d` sets the mode on creation rather than after it, so there is no window in which the
-# directory exists world-readable. Applied to $STAGING_DIR itself as well as the two children,
-# because `mkdir -p` would otherwise create the parent with the default mode.
-install -d -m 700 "$STAGING_DIR" "$STAGING_DIR/pg" "$STAGING_DIR/mongo"
+# directory exists world-readable.
+# The staging tree is a transient hand-off to restic, not a store. Clear it before every run.
+# Otherwise a target removed from the registry stays on disk forever, and every later snapshot
+# carries the stale dump. The class-A timer can overlap a manual run, so serialize per class
+# before deleting anything that another run may be about to snapshot.
+exec 9>"/var/lock/vps-backup-${CLASS}.lock"
+flock -w 300 9 || { echo "class-${CLASS} backup already running" >&2; exit 1; }
+install -d -m 700 "$STAGING_DIR"
+find "$STAGING_DIR" -mindepth 1 -delete
+install -d -m 700 "$STAGING_DIR/pg" "$STAGING_DIR/mongo"
 overall_rc=0
 
 # Shared by both dump helpers. `--field-selector=status.phase=Running` is the whole point: the

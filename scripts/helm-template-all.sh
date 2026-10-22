@@ -12,9 +12,9 @@
 #   - a chart inside a Git repository (`path`) -> shallow-clone `repoURL` at `targetRevision` and
 #     template from `<clone>/<path>`
 #
-# VCAP's charts are deliberately absent: their repositories are private, so CI here cannot fetch them,
-# and their renders belong in VCAP's own CI (CI-006). This script reports anything it skipped rather
-# than passing silently.
+# Charts in another Git repository render when the repository is public and in the allowlist below.
+# The v1 VCAP charts are public and render here. This script reports anything it skipped rather than
+# passing silently.
 #
 # Usage: scripts/helm-template-all.sh [OUTFILE]   (default: stdout)
 # Exit: 0 only if every Helm-sourced Application rendered.
@@ -40,14 +40,14 @@ while IFS= read -r -d '' manifest; do
     total=$((total + 1))
 
     if [ "$shape" = "git" ]; then
-      # A chart inside another Git repository. Only repositories this repo's CI can actually fetch are
-      # rendered: a cross-organisation private repo (VCAP's) needs credentials CI does not have, and its
-      # renders belong in its own CI (CI-006). Skipped *loudly* — a silent skip here would read as
-      # coverage that does not exist.
+      # A chart inside another Git repository. Only public repositories in this allowlist render.
+      # Anything else is skipped *loudly* so a gap never reads as coverage.
       case "$repo" in
-        *github.com/upayanmazumder/*) ;;
+        *github.com/upayanmazumder/*|\
+        *github.com/upayanmazumder-DevLabs/vcap-backend-v1|\
+        *github.com/upayanmazumder-DevLabs/vcap-frontend-v1) ;;
         *)
-          echo "SKIPPED: $app — chart lives in $repo, which CI here cannot fetch (private cross-org repo); rendered by that repo's own CI (CI-006)" >&2
+          echo "SKIPPED: $app — chart lives in $repo, which is not in the render allowlist; rendered by that repo's own CI (CI-006)" >&2
           skipped=$((skipped + 1))
           continue
           ;;
@@ -61,7 +61,24 @@ while IFS= read -r -d '' manifest; do
       fi
       args=(template "$app" "$clone/$path")
     else
-      args=(template "$app" "$chart" --repo "$repo" --version "$rev")
+      # Fetch the chart first. Helm 4.3.0 can time out while `helm template --repo` follows the
+      # GitHub release-asset redirect, while `helm pull` with the same URL succeeds. Pulling also
+      # keeps the index out of the render path.
+      pull_dir="$tmp/pull-$app"
+      mkdir -p "$pull_dir"
+      if ! helm pull "$chart" --repo "$repo" --version "$rev" --destination "$pull_dir" 2>"$tmp/err"; then
+        echo "FAILED: $rel ($app): could not pull $chart $rev from $repo" >&2
+        sed 's/^/    /' "$tmp/err" >&2
+        failed=$((failed + 1))
+        continue
+      fi
+      chart_file=$(find "$pull_dir" -maxdepth 1 -name '*.tgz' -print -quit)
+      if [ -z "$chart_file" ]; then
+        echo "FAILED: $rel ($app): helm pull produced no chart archive" >&2
+        failed=$((failed + 1))
+        continue
+      fi
+      args=(template "$app" "$chart_file")
     fi
 
     # valueFiles come through as a comma-separated list of repo-relative paths (already stripped of
@@ -104,8 +121,8 @@ for doc in docs:
         helm = src.get("helm") or {}
         # Two shapes, both in use here (verified 2026-09-28):
         #   - a chart from a HELM REPOSITORY: the source carries `chart:` (+ `repoURL`, `targetRevision`)
-        #   - a chart inside a GIT REPOSITORY: the source carries `path:` and no `chart:` — rankstack,
-        #     whose chart lives in its own repo
+        #   - a chart inside a GIT REPOSITORY: the source carries `path:` and no `chart:` — the
+        #     vcap v1 apps, whose charts live in their own repos
         chart = src.get("chart")
         path = src.get("path") or "-"
         if not chart:

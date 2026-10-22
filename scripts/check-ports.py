@@ -14,10 +14,11 @@ Check 4 is the one this file was missing, and it is where the registry had actua
 registry calls itself "source of truth for every port that is (or was, or will be) reachable from
 outside the pod network", but nothing compared it to the object that decides that — the Hetzner
 Cloud Firewall. So on 2026-09-30 the registry said of tcp/15432 and tcp/15433, the two public
-Postgres ports, "**NO such rule exists today**", while `firewall.tf` had carried
+Postgres ports of that period, "**NO such rule exists today**", while `firewall.tf` had carried
 `source_ips = ["0.0.0.0/0", "::/0"]` for both since 2026-09-29. Two files, opposite claims, both
 green. A gate that checks the registry against the least consequential half of its surface is the
-kind of check this repository's own `.gitleaks.toml` warns about.
+kind of check this repository's own `.gitleaks.toml` warns about. Those two ports and their rules
+were removed on 2026-10-23.
 
 The Hetzner Cloud Firewall is an allow-list: once attached, inbound traffic with no matching rule
 is dropped. So "a rule exists" and "the internet can reach it" are the same statement, which is
