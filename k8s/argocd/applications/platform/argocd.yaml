@@ -10,7 +10,7 @@ spec:
   sources:
     - repoURL: https://argoproj.github.io/argo-helm
       chart: argo-cd
-      targetRevision: "7.9.1" # pinned: was floating "7.*"; this is the version already running live (2026-09-28)
+      targetRevision: "10.10.5" # IMG-005: core upgrade 2.14.11 -> 3.5.5 (chart app version). See changelog/2026-10.md.
       helm:
         valueFiles:
           - $values/k8s/platform/argocd/values.yaml
