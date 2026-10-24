@@ -61,7 +61,7 @@ Every app namespace denies ingress by default. The patterns:
 | Shape | Namespaces | Allowed ingress |
 |---|---|---|
 | KEDA HTTP fronted | `cas-api`, `dj-html-nodejs-web`, `learning-docker`, `learning-qwik`, `smart-home-system-api` | Interceptor pod in namespace `keda` only |
-| Direct Traefik | `cheatsheet`, `kodesphere`, `learning-react`, `meghmitra`, `prism-streaming-rag`, `status-page`, `vcap-v1` frontend | Traefik in `kube-system`, plus same-namespace pods |
+| Direct Traefik | `cheatsheet`, `kodesphere`, `learning-react`, `meghmitra`, `prism-streaming-rag`, `status-page`, `upayan-api`, `vcap-v1` frontend | Traefik in `kube-system`; `upayan-api` admits Traefik only |
 | No ingress | `mochi` | Nothing. Outbound Discord bot |
 
 Datastore pods allow same-namespace traffic only.

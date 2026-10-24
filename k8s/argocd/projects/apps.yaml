@@ -43,6 +43,8 @@ spec:
       namespace: smart-home-system-api
     - server: https://kubernetes.default.svc
       namespace: status-page
+    - server: https://kubernetes.default.svc
+      namespace: upayan-api
   clusterResourceWhitelist:
     - group: ""
       kind: Namespace
