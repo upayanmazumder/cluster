@@ -106,6 +106,8 @@ the architecture review (private, not published) §14/§17.
 - **Orphan cleanup** (S10) and the **dead `docker/` stack**: retired/archived.
 - **Retirement** (2026-10-23): the v2, bitvault, rankstack, kirro, bandit, and upayan-v5
   workloads are removed. Their data, namespaces, Secrets, and retain policies remain.
+- **Portfolio API** (2026-10-25): `upayan-api` serves `api.upayan.dev` for the Vercel website.
+  The retired `upayan-v5` namespace remains separate. The website does not run in this cluster.
 
 **Still not implemented** (all owner-gated): credential rotation and the git-history rewrite (S5);
 re-issuing the serving Origin certificate and revoking the old one (S7); tightening the public v1

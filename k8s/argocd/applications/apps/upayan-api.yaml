@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: upayan-api
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+    argocd-image-updater.argoproj.io/image-list: "api=ghcr.io/upayanmazumder/upayan.dev/api:latest"
+    argocd-image-updater.argoproj.io/api.update-strategy: digest
+    argocd-image-updater.argoproj.io/api.kustomize.image-name: ghcr.io/upayanmazumder/upayan.dev/api
+    argocd-image-updater.argoproj.io/write-back-method: "git:secret:argocd/git-creds-updater"
+    argocd-image-updater.argoproj.io/git-branch: main
+    argocd-image-updater.argoproj.io/git-repository: git@github.com:upayanmazumder/cluster.git
+spec:
+  project: apps
+  source:
+    repoURL: https://github.com/upayanmazumder/cluster
+    targetRevision: main
+    path: k8s/apps/upayan-api
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: upayan-api
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

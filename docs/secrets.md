@@ -125,6 +125,10 @@ git.
 Keep these Secrets until the owner deletes the retained data. Rotation is unnecessary while no
 workload runs. If a dataset is restored, rotate its credential first.
 
+The `upayan-api/upayan-api-env` Secret is managed through SOPS in
+`k8s/apps/upayan-api/secrets.sops.yaml`. It uses the eight values from the retired
+`upayan-v5-api-env` Secret. The old namespace remains retained, but it serves no workload.
+
 ## GitHub access
 
 - ArgoCD uses repository-scoped credentials. This repository uses `git-creds`.
