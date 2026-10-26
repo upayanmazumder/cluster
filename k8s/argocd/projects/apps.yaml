@@ -45,6 +45,8 @@ spec:
       namespace: status-page
     - server: https://kubernetes.default.svc
       namespace: upayan-api
+    - server: https://kubernetes.default.svc
+      namespace: gitorgasm
   clusterResourceWhitelist:
     - group: ""
       kind: Namespace
