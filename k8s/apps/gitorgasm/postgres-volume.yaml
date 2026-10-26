@@ -5,10 +5,14 @@ metadata:
   name: postgres
 spec:
   volumeClaimTemplates:
-    - metadata:
+    # apiVersion, kind, and volumeMode match the server defaults, so Argo CD sees no drift.
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
         name: data
       spec:
         accessModes: ['ReadWriteOnce']
+        volumeMode: Filesystem
         storageClassName: ''
         volumeName: gitorgasm-postgres-vps
         resources:
