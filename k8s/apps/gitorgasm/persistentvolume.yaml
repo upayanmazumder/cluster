@@ -1,0 +1,27 @@
+# Same shape as the cluster's static PVs (cluster repo k8s/platform/storage/persistentvolumes.yaml).
+# The host directory must exist and be owned by UID/GID 70 before the first sync:
+#   install -d -o 70 -g 70 -m 700 /srv/data/gitorgasm-postgres
+# Prune and delete are disabled so a GitOps mistake cannot remove the database volume.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: gitorgasm-postgres-vps
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+spec:
+  capacity:
+    storage: 2Gi
+  accessModes: [ReadWriteOnce]
+  volumeMode: Filesystem
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ''
+  hostPath:
+    path: /srv/data/gitorgasm-postgres
+    type: Directory
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: ['vps']

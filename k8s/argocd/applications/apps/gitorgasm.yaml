@@ -1,0 +1,32 @@
+# gitorgasm — explicit Application (not the `apps` ApplicationSet): it carries a static PV and a
+# StatefulSet, and its kustomization has its own namespace manifest (Pod Security `restricted`).
+# Source of the manifests: github.com/upayanmazumder/gitorgasm deploy/kustomize.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gitorgasm
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+    # Digest tracking on the mutable `latest` tag. CI pushes `latest` on every main commit.
+    argocd-image-updater.argoproj.io/image-list: "core=ghcr.io/upayanmazumder/gitorgasm/core:latest"
+    argocd-image-updater.argoproj.io/core.update-strategy: digest
+    argocd-image-updater.argoproj.io/core.kustomize.image-name: ghcr.io/upayanmazumder/gitorgasm/core
+    argocd-image-updater.argoproj.io/write-back-method: "git:secret:argocd/git-creds-updater"
+    argocd-image-updater.argoproj.io/git-branch: main
+    argocd-image-updater.argoproj.io/git-repository: git@github.com:upayanmazumder/cluster.git
+spec:
+  project: apps
+  source:
+    repoURL: https://github.com/upayanmazumder/cluster
+    targetRevision: main
+    path: k8s/apps/gitorgasm
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gitorgasm
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true

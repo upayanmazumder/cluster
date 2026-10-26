@@ -27,6 +27,13 @@
   engine: postgres
   class: A
 
+# Gitorgasm production Postgres (k8s/apps/gitorgasm). Logical dump, same pattern as vcap-v1. The
+# data dir is a static Retain PV on /srv/data/gitorgasm-postgres.
+- namespace: gitorgasm
+  workload: postgres
+  engine: postgres
+  class: A
+
 # vcap-v1 application data: uploaded documents and API-generated files. The PVC uses local-path
 # with `Delete`, so a PVC deletion loses this tree. It is static while no writer is active; restic
 # reads it directly.
