@@ -49,8 +49,12 @@ Rules:
 Test a generator locally:
 
 ```bash
-kustomize build --enable-alpha-plugins --enable-exec k8s/apps/gitorgasm
+kustomize build --enable-alpha-plugins --enable-exec k8s/apps/mochi
 ```
+
+One app keeps its encrypted Secrets outside this repository. `upayanmazumder/gitorgasm` holds
+`deploy/argocd/secrets.sops.yaml`, encrypted to the same two recipients. The repo-server decrypts
+it with the same key. ArgoCD reads that repository with `creds-github-upayanmazumder`.
 
 CI does not decrypt. `scripts/check-secrets.sh` only checks `sops:` and `age:` metadata. Test the
 plaintext build locally before a commit.

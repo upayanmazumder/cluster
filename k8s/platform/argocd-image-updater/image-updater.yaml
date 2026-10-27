@@ -47,3 +47,6 @@ spec:
       useAnnotations: true
     - namePattern: adhigrahan-radar
       useAnnotations: true
+    # gitorgasm: digest of `latest`, `argocd` write-back (annotations on its Application).
+    - namePattern: gitorgasm
+      useAnnotations: true

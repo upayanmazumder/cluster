@@ -1,6 +1,8 @@
-# gitorgasm — explicit Application (not the `apps` ApplicationSet): it carries a static PV and a
-# StatefulSet, and its kustomization has its own namespace manifest (Pod Security `restricted`).
-# Source of the manifests: github.com/upayanmazumder/gitorgasm deploy/kustomize.
+# gitorgasm — explicit Application in its own AppProject. The workload manifests and the
+# SOPS-encrypted Secrets live in github.com/upayanmazumder/gitorgasm under deploy/argocd
+# (overlay deploy/kustomize/overlays/production plus a ksops generator). A merge to that
+# repository's protected `main` deploys; this file is the cluster's registration of the app,
+# not a copy of its config. The repo-server decrypts the Secrets with the cluster age key.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -8,19 +10,19 @@ metadata:
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-options: Delete=false,Prune=false
-    # Digest tracking on the mutable `latest` tag. CI pushes `latest` on every main commit.
+    # Digest tracking on the mutable `latest` tag. Gitorgasm CI pushes `latest` on every main
+    # commit. `write-back-method: argocd` patches this Application's kustomize image override:
+    # no commit to either repository, and none is possible to the protected gitorgasm `main`.
     argocd-image-updater.argoproj.io/image-list: "core=ghcr.io/upayanmazumder/gitorgasm/core:latest"
     argocd-image-updater.argoproj.io/core.update-strategy: digest
     argocd-image-updater.argoproj.io/core.kustomize.image-name: ghcr.io/upayanmazumder/gitorgasm/core
-    argocd-image-updater.argoproj.io/write-back-method: "git:secret:argocd/git-creds-updater"
-    argocd-image-updater.argoproj.io/git-branch: main
-    argocd-image-updater.argoproj.io/git-repository: git@github.com:upayanmazumder/cluster.git
+    argocd-image-updater.argoproj.io/write-back-method: argocd
 spec:
-  project: apps
+  project: gitorgasm
   source:
-    repoURL: https://github.com/upayanmazumder/cluster
+    repoURL: https://github.com/upayanmazumder/gitorgasm
     targetRevision: main
-    path: k8s/apps/gitorgasm
+    path: deploy/argocd
   destination:
     server: https://kubernetes.default.svc
     namespace: gitorgasm

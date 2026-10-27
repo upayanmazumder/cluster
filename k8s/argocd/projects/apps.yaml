@@ -45,8 +45,7 @@ spec:
       namespace: status-page
     - server: https://kubernetes.default.svc
       namespace: upayan-api
-    - server: https://kubernetes.default.svc
-      namespace: gitorgasm
+    # gitorgasm moved to its own AppProject (2026-10-27): it deploys from its own repository.
   clusterResourceWhitelist:
     - group: ""
       kind: Namespace
