@@ -43,8 +43,6 @@ spec:
   # single-image (a `{{- if }}` line is not valid YAML inside this manifest):
   #   status-page (api + app images), meghmitra (api + web), mochi, and
   #   seaweedfs-it (Helm chart, multi-source).
-  # The vcap apps live in the `vcap` project (external repos) --
-  # k8s/argocd/applications/vcap-v1/.
   #
   # write-back-method is `git`, not the "argocd" default: the in-cluster
   # kustomize image-override that the default writes onto the Application object

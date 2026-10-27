@@ -8,26 +8,15 @@ spec:
     # This is the cluster's ONLY HelmChartConfig/traefik (two would collide on name), so every Traefik
     # setting lives here.
     ports:
-      # The VCAP Postgres edge. Only vcap v1 remains. The v2 dev and staging
-      # listeners on 15432/15433 were removed on 2026-10-23 with the retired
-      # workloads. Their firewall rules are also removed. Do not add a listener
-      # without a matching route, firewall rule, and documented decision.
-      #
-      # The v1 listener is reachable only through the TCP 15434 rule in
-      # terraform/firewall.tf. Its SNI is `pg-v1.upayan.dev`.
-      vcap-pg-v1:
-        port: 15434
-        expose:
-          default: true
-        exposedPort: 15434
-        protocol: TCP
+      # No TCP database entrypoint exists. The vcap Postgres listeners on 15432, 15433, and 15434
+      # were removed with the retired vcap workloads (v2 on 2026-10-23, v1 on 2026-10-27).
+      # Do not add a listener without a matching route, firewall rule, and documented decision.
       metrics:
         port: 9100
         expose:
           # In the Service so Prometheus can scrape it in-cluster. Not reachable from the
-          # internet: the firewall's only world-open tcp rules are 22, 6443 and the two Postgres
-          # ports, and 80/443 are restricted to Cloudflare's ranges (N4). UDP 41641 is Tailscale
-          # and icmp is answered.
+          # internet: the firewall's only world-open tcp rules are 22 and 6443, and 80/443 are
+          # restricted to Cloudflare's ranges (N4). UDP 41641 is Tailscale and icmp is answered.
           default: true
         exposedPort: 9100
         protocol: TCP

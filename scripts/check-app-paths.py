@@ -120,9 +120,9 @@ def main() -> int:
         if not (REPO_ROOT / p).exists():
             findings.append(f"{manifest}: path '{p}' does not exist in this repo")
         # 3: whatever an in-repo path points *into* is claimed. A values file under
-        # `k8s/apps/vcap-v1/values/` claims `vcap-v1` just as an Application `path:` would — which
-        # matters because the vcap Applications consume their values through a `ref` source and
-        # therefore have no `path:` of their own pointing at that directory.
+        # `k8s/apps/<name>/values/` claims `<name>` just as an Application `path:` would — which
+        # matters because an Application that consumes values through a `ref` source has no
+        # `path:` of its own pointing at that directory.
         m = re.match(r"^k8s/apps/([^/]+)(?:/|$)", p)
         if m:
             claimed_dirs.add(m.group(1))
