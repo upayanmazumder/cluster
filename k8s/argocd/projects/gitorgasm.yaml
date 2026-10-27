@@ -1,0 +1,42 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: gitorgasm
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+spec:
+  description: >-
+    Gitorgasm (gitorgasm.upayan.dev, api-gitorgasm.upayan.dev). Manifests and SOPS-encrypted
+    Secrets come from upayanmazumder/gitorgasm `deploy/argocd`, deployed on every merge to its
+    protected `main`. Moved out of the shared `apps` project on 2026-10-27.
+  sourceRepos:
+    - https://github.com/upayanmazumder/gitorgasm
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: gitorgasm
+  # The same two cluster-scoped kinds `apps` granted: the Namespace (Pod Security `restricted`)
+  # and the static Retain PV for Postgres. Nothing else cluster-scoped.
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+    - group: ""
+      kind: PersistentVolume
+  # Exactly the kinds `kustomize build deploy/argocd` renders (verified 2026-10-27: 17 objects).
+  namespaceResourceWhitelist:
+    - group: ""
+      kind: ConfigMap
+    - group: ""
+      kind: Secret
+    - group: ""
+      kind: Service
+    - group: apps
+      kind: Deployment
+    - group: apps
+      kind: StatefulSet
+    - group: networking.k8s.io
+      kind: Ingress
+    - group: networking.k8s.io
+      kind: NetworkPolicy
+  orphanedResources:
+    warn: true
