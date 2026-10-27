@@ -42,6 +42,9 @@ spec:
           env:
             - name: GOMEMLIMIT
               value: 200MiB
+            # Two queues need 2 x WORKER_CONCURRENCY connections. Scoring needs 1. River needs 4.
+            - name: DB_MAX_CONNS
+              value: '13'
           ports:
             - name: metrics
               containerPort: 9090
