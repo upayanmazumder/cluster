@@ -54,7 +54,7 @@ Do not revert these updates.
 
 - Node: `vps` running k3s in Hetzner DE (`138.201.157.147`).
 - ArgoCD app-of-apps: root application watches `k8s/argocd/` on `main`.
-- AppProjects: `platform`, `apps`, `vcap`, `bootstrap`.
+- AppProjects: `platform`, `apps`, `bootstrap`. The `vcap` project was removed on 2026-10-27.
 - TLS: Traefik default certificate is a Cloudflare Origin CA wildcard (`*.upayan.dev`).
   The secret is SOPS-encrypted in `k8s/platform/traefik/`.
   Ingress resources do not declare a `tls:` block.
@@ -85,7 +85,7 @@ terraform/                      Hetzner and Cloudflare infrastructure
 | `smart-home-system-api` | Fragile | Persistent volume points to a deleted volume. Volume fails to attach on scale from zero. |
 | `adhigrahan-radar` | Replaced `meghmitra` | Adhigrahan Radar replaced the legacy PostGIS Meghmitra deployment. |
 | ArgoCD sync delay | Operational | ArgoCD can report Synced at an older revision. Run hard refresh annotation to force update. |
-| Retired workloads | Removed 2026-10-23 | `bandit`, `bitvault`, `kirro`, `rankstack`, `upayan-v5`, and vcap v2 workloads are gone. Namespaces, Secrets, and PVCs remain for data recovery. Do not archive their GitHub repositories. |
+| Retired workloads | Removed 2026-10-23 and 2026-10-27 | `bandit`, `bitvault`, `kirro`, `rankstack`, `upayan-v5`, vcap v2 (dev and staging), and vcap v1 workloads are gone. vcap v1 was removed on 2026-10-27. Namespaces, Secrets, and PVCs remain for data recovery. Do not archive their GitHub repositories. |
 | Two-level domains | Edge TLS error | Cloudflare Universal SSL covers single wildcards only. Use single-level hyphenated hostnames. |
 
 ## Sub-agents available

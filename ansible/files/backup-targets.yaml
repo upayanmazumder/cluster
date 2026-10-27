@@ -50,6 +50,15 @@
   path: /var/lib/rancher/k3s/storage/pvc-d4b91391-4691-43c4-9590-6bbe1ddf0ad9_vcap-v1_vcap-backend-v1-data
   class: C
 
+# Final logical dump of the vcap v1 database, taken on 2026-10-27 with `pg_dumpall` just before the
+# Postgres workload was stopped. It restores without a Postgres 16 data directory. See
+# docs/runbooks/restore-postgres.md.
+- namespace: vcap-v1
+  workload: vcap-v1-final-dump
+  engine: file
+  path: /srv/data/vcap-v1-final-dump
+  class: C
+
 # Adhigrahan Radar replaced the application that ran on the meghmitra hostnames. Its SQLite store
 # is at /srv/data/adhigrahan-radar-data. The old meghmitra target pointed at /srv/data/meghmitra-data,
 # which does not exist. That path is the PV's configured path, but the directory was never created.

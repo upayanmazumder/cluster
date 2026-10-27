@@ -1,8 +1,8 @@
 # Runbook: rotate a secret
 
-Every `Secret` manifest under `k8s/` is SOPS-encrypted. The live vcap platform is `vcap-v1`. The
-retired v2 workloads were removed on 2026-10-23. Their namespaces, Secrets, PVCs, and PVs remain for
-data recovery.
+Every `Secret` manifest under `k8s/` is SOPS-encrypted. The `vcap-v1` workloads were retired on
+2026-10-27. The v2 workloads were retired on 2026-10-23. Their namespaces, Secrets, PVCs, and PVs
+remain for data recovery.
 
 Encryption does not remove old values from git history. Rotation is what makes a leaked value dead.
 See [`../secrets.md`](../secrets.md).
@@ -19,10 +19,10 @@ Rotate one credential at a time. Do not add an unrelated change. A failure must 
 
 ```bash
 # 1. Edit the encrypted file in place.
-sops k8s/apps/vcap-v1/secrets/secrets.sops.yaml
+sops k8s/apps/mochi/secrets.sops.yaml
 
 # 2. Render the Secret before you commit.
-kustomize build --enable-alpha-plugins --enable-exec k8s/apps/vcap-v1/secrets
+kustomize build --enable-alpha-plugins --enable-exec k8s/apps/mochi
 
 # 3. Commit and push. ArgoCD reconciles in about three minutes.
 git commit -am "rotate <credential> for <app>" && git push origin main
@@ -67,7 +67,7 @@ kubectl -n <namespace> rollout restart deploy/<name>
   kubectl -n kube-system get secret wildcard-upayan-dev-tls -o jsonpath='{.data.tls\.crt}' \
     | base64 -d | openssl x509 -noout -serial -dates -subject -ext subjectAltName
 
-  curl -sS -o /dev/null -w '%{http_code}\n' https://vcap.upayan.dev/
+  curl -sS -o /dev/null -w '%{http_code}\n' https://status-page.upayan.dev/
   curl -sS -o /dev/null -w '%{http_code}\n' https://argocd.upayan.dev/
   ```
   Expect `200` and `302`.
@@ -85,16 +85,16 @@ kubectl -n <namespace> rollout restart deploy/<name>
 | `repo-vcap-frontend` | same file | ArgoCD access to `vitscopesoftwareteam/VCAP-STAGING-FRONTEND` |
 | `git-creds-updater` | `k8s/platform/argocd-image-updater/secrets.sops.yaml` | image-updater git write-back over SSH |
 | `ghcr-creds` | same file | image-updater registry access to GHCR |
-| `vcap-v1/pull-secret` | `k8s/apps/vcap-v1/secrets/secrets.sops.yaml` | `vcap-v1` image pulls |
+| `vcap-v1/pull-secret` | retained, no workload | none (retired 2026-10-27) |
 | `repo-creds-devlabs` | `k8s/platform/argocd/secret/repo-devlabs-secrets.sops.yaml` | ArgoCD URL-prefix credential for `upayanmazumder-DevLabs` |
-| `git-creds-noodle` | live only | retained, not required by `vcap-v1` |
-| `git-creds-rankstack` | live only | retained, not required by `vcap-v1` |
+| `git-creds-noodle` | live only | retained |
+| `git-creds-rankstack` | live only | retained |
 
 `argocd-repo-vps` does not exist. Do not add it.
 
-The two `repo-vcap-*` credentials target the unused v2 staging repositories. They are not a v1
-requirement. The v1 repositories under `upayanmazumder-DevLabs` are private. ArgoCD reads them
-through `repo-creds-devlabs`. An unauthenticated fetch returns `401`.
+The two `repo-vcap-*` credentials target the unused v2 staging repositories. The `vcap-v1`
+Applications and AppProject were removed on 2026-10-27. `repo-creds-devlabs` is the ArgoCD
+URL-prefix credential for the private `upayanmazumder-DevLabs` repositories.
 
 - **Rotate a GitHub credential:** create the replacement at GitHub. A fine-grained PAT needs access
   to the exact repositories. An SSH deploy key must be unique to one repository. Write the value to
@@ -106,9 +106,9 @@ through `repo-creds-devlabs`. An unauthenticated fetch returns `401`.
   ```
 - **Verify ArgoCD:**
   ```bash
-  kubectl -n argocd annotate application vcap-v1 \
+  kubectl -n argocd annotate application mochi \
     argocd.argoproj.io/refresh=hard --overwrite
-  kubectl -n argocd get application vcap-v1
+  kubectl -n argocd get application mochi
   ```
   The Application must reach `Synced`. There must be no `ComparisonError`.
 - **Verify image-updater:**
@@ -124,15 +124,10 @@ each call. Test the credential against the service.
 
 ## Database passwords
 
-The only live database Secret is `vcap-v1/backend-env`:
+No database workload runs. The retained datasets have Secrets but no workload. Keep these Secrets
+for recovery:
 
-- `POSTGRES_DB`, `POSTGRES_USER`, and `POSTGRES_PASSWORD` configure the Postgres container.
-- `DATABASE_URL` and `DATABASE_URL_SYNC` configure the API and worker containers.
-- `auth-env` holds the auth service connections.
-- `redis` has no password in this deployment.
-
-The retained datasets have Secrets but no workload. Keep these Secrets for recovery:
-
+- `vcap-v1/backend-env` and `vcap-v1/auth-env` (retired 2026-10-27)
 - `vcap-staging/backend-env`
 - `vcap-dev/backend-env`
 - `bitvault/bitvault-postgres-env`
@@ -140,46 +135,8 @@ The retained datasets have Secrets but no workload. Keep these Secrets for recov
 
 Do not rotate a retained Secret unless you restore the dataset. Do not start a workload to rotate it.
 
-### Change the v1 Postgres password
-
-Postgres allows one password for a role. The order below has one short cutover:
-
-1. Set the new password in the database:
-   ```bash
-   kubectl -n vcap-v1 exec -it deploy/vcap-backend-v1-postgres -- \
-     psql -U app_user -d latex_capstone
-   ```
-   Then run `\password app_user` and enter the new value. This avoids the password in shell history.
-2. Write the same value to `POSTGRES_PASSWORD` in `vcap-v1/backend-env`. Update any password embedded
-   in `DATABASE_URL` and `DATABASE_URL_SYNC` in the same edit. Commit and sync.
-3. Restart the consumers:
-   ```bash
-   kubectl -n vcap-v1 rollout restart \
-     deploy/vcap-backend-v1-api \
-     deploy/vcap-backend-v1-auth \
-     deploy/vcap-backend-v1-worker \
-     deploy/vcap-backend-v1-ocr-worker
-   kubectl -n vcap-v1 rollout status deploy/vcap-backend-v1-api
-   ```
-4. Restart Postgres only if its own `POSTGRES_*` environment changed. The Secret edit does not restart
-   it by itself:
-   ```bash
-   kubectl -n vcap-v1 rollout restart deploy/vcap-backend-v1-postgres
-   ```
-5. Verify from inside the Postgres pod:
-   ```bash
-   kubectl -n vcap-v1 exec deploy/vcap-backend-v1-postgres -- sh -c \
-     'PGPASSWORD="$POSTGRES_PASSWORD" psql -h 127.0.0.1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select 1"'
-   ```
-   Then confirm all v1 pods are Ready and the API logs contain no authentication errors:
-   ```bash
-   kubectl -n vcap-v1 get pods
-   kubectl -n vcap-v1 logs deploy/vcap-backend-v1-api --tail=50
-   ```
-
-The public edge on TCP `15434` uses this password. The firewall rule allows all sources. The password
-is the only control. Do not disable TLS. See
-[`vcap-v1-postgres-access.md`](vcap-v1-postgres-access.md).
+The `vcap-v1` Postgres edge on TCP 15434 is removed. No v1 password procedure exists. See
+[`restore-postgres.md`](restore-postgres.md) to read the retained v1 data.
 
 ## Discord credentials
 
@@ -243,7 +200,7 @@ Only with owner confirmation:
 
 - [`../secrets.md`](../secrets.md): policy, SOPS and age recipients, bootstrap order.
 - [`recover-vm.md`](recover-vm.md): from-scratch bootstrap.
-- [`rotate-certificates.md`](rotate-certificates.md): origin and v1 edge certificates.
-- [`vcap-v1-postgres-access.md`](vcap-v1-postgres-access.md): the public v1 Postgres edge.
+- [`rotate-certificates.md`](rotate-certificates.md): the origin certificate.
+- [`restore-postgres.md`](restore-postgres.md): recovery of the retained `vcap-v1` data.
 - [`../../.claude/skills/secrets-tls/SKILL.md`](../../.claude/skills/secrets-tls/SKILL.md): daily
   conventions.

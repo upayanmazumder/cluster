@@ -1,14 +1,16 @@
 # Storage
 
-This page describes the live storage layout after the 2026-10-23 retirement. Verify live state
-before you rely on any number here.
+This page describes the live storage layout after the 2026-10-27 vcap v1 retirement. Verify live
+state before you rely on any number here.
 
 ## Live data
 
 | Dataset | Namespace | Backing | Size | Backup |
 | --- | --- | --- | --- | --- |
-| Postgres `vcap-v1` | `vcap-v1` | static PV `vcap-v1-postgres-data-vps`, hostPath `/srv/data/vcap-v1-postgres`, `Retain` | 67 MB | class A logical dump |
-| Application data `vcap-v1` | `vcap-v1` | local-path PV `pvc-d4b91391-4691-43c4-9590-6bbe1ddf0ad9`, `Delete` | 15 MB | class A raw |
+| Postgres `gitorgasm` | `gitorgasm` | static PV on hostPath `/srv/data/gitorgasm-postgres`, `Retain` | not measured | class A logical dump |
+| Postgres `vcap-v1` (retired, retained) | `vcap-v1` | static PV `vcap-v1-postgres-data-vps`, hostPath `/srv/data/vcap-v1-postgres`, `Retain` | 67 MB | class C raw |
+| Final dump `vcap-v1` (retired, retained) | none | host directory `/srv/data/vcap-v1-final-dump`, file `vcap-v1-pg_dumpall-20261027.sql.gz` | not measured | class C raw |
+| Application data `vcap-v1` (retired, retained) | `vcap-v1` | local-path PV `pvc-d4b91391-4691-43c4-9590-6bbe1ddf0ad9`, `Retain` since 2026-10-27 | 15 MB | class C raw |
 | Postgres and MinIO `vcap-staging` | `vcap-staging` | static PV `vcap-backend-staging-data-vps`, hostPath `/srv/data/vcap-staging`, `Retain` | 75 MB | class A raw |
 | Postgres and MinIO `vcap-dev` | `vcap-dev` | static PV `vcap-backend-dev-data-vps`, hostPath `/srv/data/vcap-dev`, `Retain` | 70 MB | class C raw |
 | Postgres `meghmitra` | `meghmitra` | static PV `meghmitra-postgres-pvc-vps`, hostPath `/srv/data/meghmitra-postgres`, `Retain` | 206 MB | class C raw |
@@ -20,12 +22,26 @@ before you rely on any number here.
 | Corpus | `meghmitra` | local-path PV `pvc-a5b3a672…`, `Retain` | 4 KB | none |
 | Grafana | `monitoring` | PV `pv-grafana`, hostPath `/var/lib/k8s-monitoring/grafana`, `Retain` | 52 MB | class C raw plus consistent `grafana.db` copy |
 
-The `vcap-staging`, `vcap-dev`, `bitvault`, `rankstack`, and `kirro` workloads are gone. Their
+The `vcap-staging`, `vcap-dev`, `vcap-v1`, `bitvault`, `rankstack`, and `kirro` workloads are gone. Their
 namespaces, PVCs, PVs, Secrets, and data remain. Their Postgres and Mongo trees are static. Do not
 start a server on a retained tree. Copy it first. See the restore runbooks.
 
 The `meghmitra` Postgres workload is also gone. The data remains. The `adhigrahan-radar` workload
 replaced the old meghmitra application and is live.
+
+Namespace `vcap-v1` also keeps these objects:
+
+- Secrets `auth-env`, `backend-env`, `pull-secret`, and `vcap-v1-postgres-edge-tls`.
+- ConfigMaps `vcap-backend-v1-auth-config`, `vcap-backend-v1-backend-config`, and
+  `vcap-frontend-v1-web-config`.
+- PVCs `vcap-backend-v1-data` and `vcap-backend-v1-postgres-data`.
+
+The `vcap-v1` Postgres 16 data is in the `pgdata/` directory. Postgres stopped cleanly before the
+retirement. No `postmaster.pid` file exists. The final dump has mode 600. It holds 58 tables and
+104 live rows. Its gzip check passed. The local-path host directory for the application data is
+`/var/lib/rancher/k3s/storage/pvc-d4b91391-4691-43c4-9590-6bbe1ddf0ad9_vcap-v1_vcap-backend-v1-data`.
+
+The namespace is still declared in `k8s/platform/storage/namespaces-tenants.yaml`.
 
 ## Disposable and infrastructure data
 
@@ -44,17 +60,18 @@ Measured 2026-10-23:
 
 - Root disk: 75 GB ext4, 46 GB used, 27 GB free, 64%.
 - `/srv/data`: 20 GB ext4, 439 MB used, 19 GB free, 3%.
-- Class A source data: about 157 MB. This is `/srv/data/vcap-staging` (75 MB), the `vcap-v1`
-  Postgres tree (67 MB), and the `vcap-v1` application data (15 MB). The class-A snapshot also
-  contains the logical dump and globals.
+- Class A source data: `/srv/data/vcap-staging` (75 MB, measured 2026-10-23) and the `gitorgasm`
+  Postgres. The class-A snapshot also contains the `gitorgasm` logical dump and globals.
+- The retained `vcap-v1` trees are class C. Measured 2026-10-23, the Postgres tree was 67 MB and
+  the application data was 15 MB.
 - The largest single dataset is `rankstack` at 509 MB, followed by `meghmitra-postgres` at 206 MB.
 
 ## Storage configuration
 
 - `local-path` is the default StorageClass. It provisions under
   `/var/lib/rancher/k3s/storage`. The StorageClass default reclaim policy is `Delete`. Individual
-  PVs can differ: the bitvault and rankstack PVs are `Retain`, while the kirro and `vcap-v1`
-  application-data PVs are `Delete`.
+  PVs can differ: the bitvault, rankstack, and `vcap-v1` application-data PVs are `Retain`, while the kirro
+  PVs are `Delete`.
 - `hcloud-volumes` exists but has no PVs. No Hetzner CSI volume backs a PVC. The driver is not on a
   critical path.
 - Static PVs use `hostPath`, not `.spec.local`. The path is in `.spec.hostPath.path`. All static
@@ -66,12 +83,11 @@ Measured 2026-10-23:
 Class A runs every 30 minutes. Class C runs daily. See [`backups.md`](backups.md) for the exact
 targets and retention.
 
-- `vcap-v1` Postgres is a logical target. It runs `pg_dump -Fc` and `pg_dumpall --globals-only`
+- `gitorgasm` Postgres is a logical target. It runs `pg_dump -Fc` and `pg_dumpall --globals-only`
   inside the live pod. A raw copy of a running Postgres tree can be inconsistent.
 - `vcap-staging` is a class-A raw target. Its Postgres and MinIO data are static.
-- `vcap-v1` application data is a class-A raw target. The PVC uses `Delete`, so the backup is the
-  only copy outside the node.
-- Class C covers `vcap-dev`, `adhigrahan-radar`, `meghmitra-postgres`, both bitvault PVCs,
+- Class C covers `vcap-dev`, `adhigrahan-radar`, `meghmitra-postgres`, the `vcap-v1` Postgres tree,
+  the `vcap-v1` application data, the `vcap-v1` final dump directory, both bitvault PVCs,
   `rankstack`, both kirro PVCs, and Grafana.
 - Class C is best effort. The owner accepts loss of class-C data.
 
@@ -107,7 +123,10 @@ This predates the retirement. Leave it alone unless a separate task takes it.
 - The old `meghmitra` database size of 215 MB described the running database. The current raw tree
   is 206 MB.
 - The class-A composition changed on 2026-10-23: `vcap-staging` and `meghmitra` logical dumps were
-  replaced by raw file targets. `vcap-v1` remains the only logical Postgres target.
+  replaced by raw file targets. `vcap-v1` remained the only logical Postgres target until 2026-10-27.
+- On 2026-10-27 vcap v1 was retired. The `vcap-v1` Postgres tree, application data, and final dump
+  moved from class A to class C as raw file targets. The application-data PV changed from `Delete` to
+  `Retain`. `gitorgasm` Postgres is the only logical Postgres target.
 
 ## Related
 

@@ -15,14 +15,14 @@ The repository declares these rules:
 | tcp/22 | `0.0.0.0/0`, `::/0` | Root SSH, key-only. Target is Tailscale-only |
 | tcp/80, tcp/443 | Cloudflare published ranges | Built from `data.cloudflare_ip_ranges` |
 | tcp/6443 | `0.0.0.0/0`, `::/0` | k3s API server. Target is Tailscale-only |
-| tcp/15434 | `0.0.0.0/0`, `::/0` | vcap v1 Postgres edge, TLS required |
 | udp/41641 | `0.0.0.0/0`, `::/0` | Tailscale NAT traversal |
 | icmp | `0.0.0.0/0`, `::/0` | Answered |
 
-TCP `15432`, TCP `15433`, TCP `7881`, and UDP `7882` are absent from the repository.
-Their last consumers, the vcap v2 and kirro workloads, were removed on 2026-10-23.
-Terraform applied the same removals to firewall `11692068` on 2026-10-23.
-Public probes confirm that ports `15432` and `15433` are closed.
+TCP `15432`, TCP `15433`, TCP `15434`, TCP `7881`, and UDP `7882` are absent from the repository.
+Their last consumers were the vcap v2, vcap v1, and kirro workloads.
+Terraform applied the v2 and kirro removals to firewall `11692068` on 2026-10-23.
+Terraform applied the `15434` removal on 2026-10-27.
+Public probes confirm that ports `15432`, `15433`, and `15434` are closed.
 `7881` is closed too.
 
 All other ports are dropped. Host `iptables` INPUT policy is `ACCEPT`. `ufw` is inactive.
@@ -38,21 +38,17 @@ Closed by the absence of rules:
 
 Some of these ports are still bound on the host. The firewall makes them unreachable.
 
-## vcap Postgres exposure
+## vcap Postgres exposure (retired)
 
-Only the `vcap-v1` Postgres is public.
-Traefik listens on TCP `15434` through entrypoint `vcap-pg-v1`.
-The `IngressRouteTCP/vcap-v1-postgres` route matches SNI `pg-v1.upayan.dev` and forwards to
-`vcap-backend-v1-postgres:5432`.
-TLS is mandatory. The route uses Secret `vcap-v1-postgres-edge-tls` and TLSOption `vcap-pg`.
-The path is reachable from any address. The database password is the only client guard.
-Authentication failures are alerted.
-See [`certificates.md`](certificates.md) and
-[`runbooks/vcap-v1-postgres-access.md`](runbooks/vcap-v1-postgres-access.md).
+> **Retired 2026-10-27.** vcap v1 is retired. No database port is open.
 
-The v2 entrypoints and routes are gone.
-The retained `vcap-dev` and `vcap-staging` data serves no traffic.
+Traefik no longer has entrypoint `vcap-pg-v1`. `IngressRouteTCP/vcap-v1-postgres` and TLSOption
+`vcap-pg` are removed. `pg-v1.upayan.dev:15434` is closed. The firewall allows no database port.
+
+The v2 entrypoints and routes are gone too.
+The retained `vcap-dev`, `vcap-staging`, and `vcap-v1` data serves no traffic.
 Do not add a listener or firewall rule for retained data.
+To recover the retained v1 data, see [`runbooks/restore-postgres.md`](runbooks/restore-postgres.md).
 
 ## NetworkPolicy posture
 
@@ -61,18 +57,17 @@ Every app namespace denies ingress by default. The patterns:
 | Shape | Namespaces | Allowed ingress |
 |---|---|---|
 | KEDA HTTP fronted | `cas-api`, `dj-html-nodejs-web`, `learning-docker`, `learning-qwik`, `smart-home-system-api` | Interceptor pod in namespace `keda` only |
-| Direct Traefik | `cheatsheet`, `kodesphere`, `learning-react`, `meghmitra`, `prism-streaming-rag`, `status-page`, `upayan-api`, `vcap-v1` frontend | Traefik in `kube-system`; `upayan-api` admits Traefik only |
+| Direct Traefik | `cheatsheet`, `kodesphere`, `learning-react`, `meghmitra`, `prism-streaming-rag`, `status-page`, `upayan-api` | Traefik in `kube-system`; `upayan-api` admits Traefik only |
 | No ingress | `mochi` | Nothing. Outbound Discord bot |
 
 Datastore pods allow same-namespace traffic only.
-The `vcap-v1` Postgres is the exception. It admits Traefik through its `IngressRouteTCP`.
 
 Two rules:
 
 - Intra-namespace rules use an empty `podSelector`. The namespace is the trust boundary.
 - Policies for charts that ship none live in this repository, next to the app manifests.
 
-The retained namespaces run no pods. Their NetworkPolicies do nothing.
+The retained namespaces, including `vcap-v1`, run no pods. Their NetworkPolicies do nothing.
 
 ## Target architecture
 
@@ -82,8 +77,7 @@ Three layers, one owner each:
 Cloudflare (proxy, Full strict, Always HTTPS)
    │ 80/443 only, from Cloudflare ranges
 Hetzner Cloud Firewall "vps" (Terraform-managed)
-   │ allow: 80,443 (Cloudflare) · 15434 (world, TLS) ·
-   │        41641/udp (Tailscale) · icmp
+   │ allow: 80,443 (Cloudflare) · 41641/udp (Tailscale) · icmp
    │ drop: everything else, including tcp 22 and 6443
 Host (Ansible-managed)
    │ Tailscale is the only path to SSH (22), k3s API (6443), kubelet (10250)
@@ -91,9 +85,7 @@ Host (Ansible-managed)
 
 Decisions:
 
-- **The vcap v1 Postgres stays public on TCP `15434`.** The owner accepted this exposure.
-  TLS, per-person non-superuser roles, a `pg_hba` that refuses network superuser logins, and
-  auth-failure alerting remain the hardening requirements.
+- **No database port is public.** vcap v1 was retired on 2026-10-27 and TCP `15434` is closed.
 - **Admin plane is Tailscale-only.** No public SSH and no public API. Last-resort access is the
   Hetzner console or rescue system. See [`runbooks/recover-vm.md`](runbooks/recover-vm.md).
 - **The Hetzner firewall is the only packet filter managed by this repository.** Do not add

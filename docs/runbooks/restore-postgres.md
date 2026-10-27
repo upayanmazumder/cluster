@@ -2,8 +2,8 @@
 
 Two cases exist after the 2026-10-23 retirement:
 
-- **Live `vcap-v1`.** `vcap-backend-v1-postgres` still runs. Its class-A backup is a logical
-  `pg_dump` plus globals. Use the dump and the in-place variant.
+- **Retired `vcap-v1`.** No Postgres workload runs since 2026-10-27. A final dump and a raw tree
+  remain in class C. See Variant A.
 - **Retired data.** `vcap-staging`, `vcap-dev`, `meghmitra`, and `bitvault` have no Postgres
   workload. Their namespaces, Secrets, and PVCs remain. The data is static and class A or class C
   holds a raw copy of it. Recover it with a temporary `postgres:16` pod that mounts a **copy** of
@@ -17,18 +17,18 @@ Two cases exist after the 2026-10-23 retirement:
 
 Class A runs every 30 minutes:
 
-- `vcap-v1/vcap-backend-v1-postgres`: `pg_dump -Fc` plus `pg_dumpall --globals-only`, written to
-  `var/backups/staging/class-A/pg/` inside the snapshot.
 - `vcap-staging/vcap-backend-staging-data`: raw `/srv/data/vcap-staging` tree.
-- `vcap-v1/vcap-backend-v1-data`: raw application-data PVC.
+- `gitorgasm` Postgres: logical dump, written to `var/backups/staging/class-A/pg/` in the snapshot.
 
 Class C runs daily:
 
 - Raw `/srv/data/vcap-dev`, `/srv/data/adhigrahan-radar-data`, `/srv/data/meghmitra-postgres`,
   the bitvault Postgres and MinIO PVCs, the rankstack Mongo PVC, and the Grafana host path.
+- `vcap-v1` (retired 2026-10-27): raw `/srv/data/vcap-v1-postgres`, the raw app-data PVC path, and
+  `/srv/data/vcap-v1-final-dump`.
 
-Class A no longer contains the old `vcap-staging` or `meghmitra` Postgres dumps. Those workloads
-were retired. Their PVC data is raw and static.
+Class A holds no `vcap-v1` data. Class A no longer holds the old `vcap-staging` or `meghmitra`
+Postgres dumps. Those workloads were retired. Their PVC data is raw and static.
 
 ## Getting a snapshot out of the repository
 
@@ -45,10 +45,7 @@ restic restore latest --tag class-A --target /var/tmp/recover-a
 A class-A restore contains:
 
 ```text
-/var/tmp/recover-a/var/backups/staging/class-A/pg/vcap-v1-vcap-backend-v1-postgres.dump
-/var/tmp/recover-a/var/backups/staging/class-A/pg/vcap-v1-vcap-backend-v1-postgres-globals.sql
 /var/tmp/recover-a/srv/data/vcap-staging/postgres/pgdata/
-/var/tmp/recover-a/var/lib/rancher/k3s/storage/pvc-d4b91391-4691-43c4-9590-6bbe1ddf0ad9_vcap-v1_vcap-backend-v1-data/
 ```
 
 A class-C restore contains the raw tree for each target. The bitvault Postgres tree is at:
@@ -64,39 +61,61 @@ If the node is gone, the R2 copy is the fallback. The restic password is in
 `ansible/group_vars/vps/secrets.sops.yaml` (key `restic_password`). The password is also in the
 owner's password manager. Without it, every snapshot is unreadable.
 
-## Variant A: live vcap-v1 logical restore
+## Variant A: vcap v1 data (retired 2026-10-27)
 
-This overwrites live data. Take a fresh dump of the current state first if it may still have value.
-Confirm the target with the owner.
+The `vcap-v1` workloads were retired on 2026-10-27. No Postgres server runs in namespace `vcap-v1`.
+No Service, route, or public port exists. Only retained data remains. Use one of two methods.
+
+Retained items in `vcap-v1`:
+
+- Final dump: `/srv/data/vcap-v1-final-dump/vcap-v1-pg_dumpall-20261027.sql.gz` (class C).
+- Raw Postgres 16 tree: `/srv/data/vcap-v1-postgres/pgdata/` (PV `vcap-v1-postgres-data-vps`, Retain).
+- Application data: PV `pvc-d4b91391-4691-43c4-9590-6bbe1ddf0ad9` (Retain).
+
+### Method 1: restore the final dump
+
+The dump is a `pg_dumpall` script. It has the roles and all databases. Restore it into a temporary
+Postgres 16 pod. Do not restore it into a retained data directory.
 
 ```bash
 NS=vcap-v1
-DEPLOY=vcap-backend-v1-postgres
-POD=$(kubectl -n "$NS" get pods -o name | grep "$DEPLOY" | head -1 | cut -d/ -f2)
+kubectl -n "$NS" run pg-recover --image=postgres:16 --restart=Never \
+  --env=POSTGRES_PASSWORD=recover-only
+kubectl -n "$NS" wait --for=condition=Ready pod/pg-recover --timeout=120s
+until kubectl -n "$NS" exec pg-recover -- pg_isready -U postgres >/dev/null 2>&1; do sleep 3; done
 
-kubectl cp /var/tmp/recover-a/var/backups/staging/class-A/pg/vcap-v1-vcap-backend-v1-postgres.dump \
-  "$NS"/"$POD":/tmp/restore.dump
-
-kubectl exec -n "$NS" "$POD" -- sh -c '
-  set -e
-  PGPASSWORD="$POSTGRES_PASSWORD" dropdb -U "$POSTGRES_USER" "$POSTGRES_DB"
-  PGPASSWORD="$POSTGRES_PASSWORD" createdb -U "$POSTGRES_USER" -O "$POSTGRES_USER" "$POSTGRES_DB"
-  PGPASSWORD="$POSTGRES_PASSWORD" pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" /tmp/restore.dump
-  rm -f /tmp/restore.dump
-'
-
-kubectl rollout restart deploy/vcap-backend-v1-postgres -n "$NS"
-kubectl rollout status deploy/vcap-backend-v1-postgres -n "$NS"
+zcat /srv/data/vcap-v1-final-dump/vcap-v1-pg_dumpall-20261027.sql.gz \
+  | kubectl -n "$NS" exec -i pg-recover -- psql -U postgres -q -o /dev/null
+kubectl -n "$NS" exec pg-recover -- psql -U postgres -d latex_capstone -Atc \
+  "select count(*) from pg_tables where schemaname='public'"
 ```
 
-The postgres Pod holds `POSTGRES_DB`, `POSTGRES_USER`, and `POSTGRES_PASSWORD` from Secret
-`backend-env`. Run the restore inside the pod, so the credentials do not reach shell history.
+Use the restored files from `/var/tmp/recover-c/srv/data/vcap-v1-final-dump/` if the node is new.
+The last line of the dump reads `cluster dump complete`. Expect 58 tables and 104 live rows in the
+database `latex_capstone`. Messages that a role or database "does not exist, skipping" are normal.
+Delete the pod when you finish with `kubectl -n vcap-v1 delete pod pg-recover`.
+Do not create a Service, an IngressRouteTCP, or a firewall rule.
 
-Apply `globals.sql` separately if roles are missing. It is a plain `pg_dumpall --globals-only`
-script, not part of the `.dump` file.
+### Method 2: start Postgres on a COPY of the raw tree
 
-Validate that the expected tables exist. Check row counts against the time of the dump. Confirm the
-`vcap-backend-v1-api` and `vcap-backend-v1-worker` pods reconnect and pass health checks.
+Never start Postgres on `/srv/data/vcap-v1-postgres`. Copy it first. Follow Variant B steps 1 to 4
+with these values:
+
+```bash
+SRC=/srv/data/vcap-v1-postgres/pgdata      # or /var/tmp/recover-c/srv/data/vcap-v1-postgres/pgdata
+NS=vcap-v1
+```
+
+Use Secret `backend-env` in `vcap-v1` for the credentials. The data is Postgres 16.
+
+### Clean up
+
+```bash
+kubectl -n vcap-v1 delete pod pg-recover
+rm -rf /var/tmp/pg-recover
+```
+
+Do not delete the PVCs, the PVs, or the Secrets in `vcap-v1`.
 
 ## Variant B: retired static data
 
@@ -214,8 +233,8 @@ Delete the temporary pod before you leave. Do not delete the PVC, the PV, or the
 ## Variant C: verify a backup without touching production
 
 The restore drill is the executable reference. It restores the newest snapshot for class A or
-class C, imports the `vcap-v1` dump into a scratch database, compares table lists and row counts
-with live, checks raw Postgres trees, and removes its scratch namespaces.
+class C. It imports each logical dump into a scratch database and checks the raw Postgres trees.
+It removes its scratch namespaces when it ends.
 
 ```bash
 ssh vps '/usr/local/sbin/vps-restore-test.sh A'
@@ -227,6 +246,6 @@ The drill uses the `restore-test` namespace for class A and `restore-test-c` for
 
 ## Status
 
-The class-A import and raw-tree checks run on the 1st at 05:00 UTC. The class-C run is on the 15th
-at 06:00 UTC. Historical measurements from 2026-09-28 (vcap-staging 57 tables, meghmitra 17 tables)
-applied to the old logical-dump layout and no longer describe the current registry.
+The class-A and class-C drills run on a schedule. Class A runs on the 1st at 05:00 UTC. Class C runs
+on the 15th at 06:00 UTC. Measurements from 2026-09-28 (vcap-staging 57 tables, meghmitra 17
+tables) are historical. They do not describe the current registry.

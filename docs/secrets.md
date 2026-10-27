@@ -1,7 +1,7 @@
 # Secrets
 
-All source `Secret` manifests under `k8s/` are SOPS-encrypted. The live vcap platform is
-`vcap-v1`. The retired v2 workloads were removed on 2026-10-23. Their namespaces, Secrets, PVCs, and
+All source `Secret` manifests under `k8s/` are SOPS-encrypted. vcap v1 was retired on 2026-10-27.
+The retired v2 workloads were removed on 2026-10-23. Their namespaces, Secrets, PVCs, and
 PVs remain for recovery.
 
 Encryption is not rotation. A value that was ever committed is compromised. Rotation makes it dead.
@@ -9,7 +9,7 @@ See [`runbooks/rotate-secrets.md`](runbooks/rotate-secrets.md).
 
 ## Current state
 
-- **15 SOPS files** hold Kubernetes Secrets: 9 app/vcap files (7 other apps plus 2 `vcap-v1`) and 6 platform files.
+- **15 SOPS files** hold Kubernetes Secrets: 9 app files and 6 platform files.
 - No plaintext `Secret` manifest remains under `k8s/`.
 - The last plaintext credential path was the v2 Helm values file. That file is gone.
 - `helm-secrets` is not installed. Kubernetes Secrets use the `ksops` generator.
@@ -49,7 +49,7 @@ Rules:
 Test a generator locally:
 
 ```bash
-kustomize build --enable-alpha-plugins --enable-exec k8s/apps/vcap-v1/secrets
+kustomize build --enable-alpha-plugins --enable-exec k8s/apps/gitorgasm
 ```
 
 CI does not decrypt. `scripts/check-secrets.sh` only checks `sops:` and `age:` metadata. Test the
@@ -83,10 +83,6 @@ The old `argocd-repo-vps` Secret does not exist. Do not add it. The cluster repo
 | `sops-age` | never | ArgoCD repo-server |
 | `ghcr-creds` | `k8s/platform/argocd-image-updater/secrets.sops.yaml` | image-updater registry reads |
 | `git-creds-updater` | same file | image-updater git write-back over SSH |
-| `vcap-v1/backend-env` | `k8s/apps/vcap-v1/secrets/secrets.sops.yaml` | v1 API, auth, workers, Postgres |
-| `vcap-v1/auth-env` | same file | v1 auth service |
-| `vcap-v1/pull-secret` | same file | v1 image pulls |
-| `vcap-v1/vcap-v1-postgres-edge-tls` | `k8s/apps/vcap-v1/edge/secrets.sops.yaml` | v1 Postgres edge TLS |
 | `wildcard-upayan-dev-tls` | `k8s/platform/traefik/secrets.sops.yaml` | Traefik `TLSStore default` |
 | `hcloud` | `k8s/hetzner-csi/secrets.sops.yaml` | hcloud CSI, key `token` |
 | `grafana-admin-credentials` | `k8s/monitoring/secrets.sops.yaml` | Grafana admin |
@@ -100,11 +96,12 @@ The old `argocd-repo-vps` Secret does not exist. Do not add it. The cluster repo
 | Terraform secrets | never | external `secrets.enc.env`, read by `scripts/tf.sh` |
 | age private keys | never | owner and `argocd/sops-age` |
 
-The v1 repositories under `upayanmazumder-DevLabs` are private. ArgoCD reads them through
+The vcap v1 repositories under `upayanmazumder-DevLabs` are private and are not changed. No ArgoCD
+Application reads them since 2026-10-27. ArgoCD reads other DevLabs repositories through
 `repo-creds-devlabs`. An unauthenticated fetch returns `401`.
 
 `git-creds-noodle` and `git-creds-rankstack` exist only in the live cluster. They have no source
-manifest. They support retained workloads that no longer run. Do not make them a v1 prerequisite.
+manifest. They support retained workloads that no longer run. Do not make them a prerequisite.
 
 ## Retained live-only Secrets
 
@@ -113,6 +110,7 @@ git.
 
 | Namespace | Secrets |
 |---|---|
+| `vcap-v1` | `auth-env`, `backend-env`, `pull-secret`, `vcap-v1-postgres-edge-tls` |
 | `vcap-dev` | `auth-env`, `backend-env`, `pull-secret` |
 | `vcap-staging` | `auth-env`, `backend-env`, `pull-secret` |
 | `bitvault` | `bitvault-ghcr-pull`, `bitvault-minio-env`, `bitvault-postgres-env`, `bitvaultd-env` |
@@ -137,7 +135,7 @@ The `upayan-api/upayan-api-env` Secret is managed through SOPS in
 - image-updater uses `git-creds-updater` over SSH and `ghcr-creds` for the registry.
 - The reused `gho_` token is not part of the current design.
 - `git-creds-updater` writes image digests straight to `main`. Do not add a branch step.
-- v1 image pulls use `vcap-v1/pull-secret`.
+- vcap v1 was removed on 2026-10-27. Its image pulls no longer exist. `vcap-v1/pull-secret` is retained and unused.
 
 `ghcr-creds` works. Do not treat the old 401 incident as current. Verify with the image-updater pod
 logs after a credential change.

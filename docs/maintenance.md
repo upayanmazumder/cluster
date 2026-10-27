@@ -26,7 +26,7 @@ Kubernetes objects:
 | Runtime | k3s | control plane, CoreDNS, bundled Traefik chart, local-path provisioner, ServiceLB | — |
 | Kubernetes | ArgoCD (`k8s/`) | every Kubernetes object except the bootstrap set below | host, provider |
 | Bootstrap (manual, documented) | `kubectl` once | ArgoCD install, `argocd/sops-age` Secret, root Application | — |
-| App repos | their owners | chart templates and digest pins for vcap v1, hello-kitty | secrets (values with secrets stay in this repo, encrypted) |
+| App repos | their owners | chart templates and digest pins for hello-kitty | secrets (values with secrets stay in this repo, encrypted) |
 
 **Hard rule**: no two layers ever own the same resource. If you're about to add something, check
 which layer already owns adjacent state before picking where it goes.

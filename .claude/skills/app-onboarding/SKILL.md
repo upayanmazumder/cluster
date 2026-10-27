@@ -173,7 +173,7 @@ template: give it an explicit `Application` in `k8s/argocd/applications/apps/` i
 
 ## 7. Add the namespace to the AppProject (required since S11)
 
-The `apps`/`vcap` AppProjects no longer allow `namespace: "*"` — each one lists
+The `apps` AppProject no longer allows `namespace: "*"`. It lists
 its destinations explicitly. Add this app's namespace or the app will sync-fail with
 `namespace <name> is not permitted in project apps`:
 

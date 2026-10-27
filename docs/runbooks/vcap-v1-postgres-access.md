@@ -1,105 +1,34 @@
-# Runbook: VCAP v1 Postgres external access (15434)
+# Runbook: VCAP v1 Postgres external access — retired
 
-How anyone reaches v1's Postgres directly — **no Cloudflare Access, no VPN** — as requested by the
-owner on 2026-10-03. The v2 workloads were retired on 2026-10-23. v1 is the only vcap deployment.
+**Status: retired 2026-10-27.** Do not use this runbook to connect to a database.
 
-## The contract
+The vcap v1 platform was retired on 2026-10-27. The public Postgres edge on TCP 15434 was open from
+2026-10-03 to 2026-10-27. It no longer exists.
 
-| | v1 |
+| Item | State |
 |---|---|
-| `host` (for the TLS name) | `pg-v1.upayan.dev` |
-| `hostaddr` (what is actually dialled) | `138.201.157.147` (the node's public address) |
-| Port | **15434** |
-| TLS | required |
-| Verification | `sslmode=verify-full` recommended, `verify-ca` the minimum, against the v1 edge CA below |
-| Login | `app_user` (the database owner) |
+| Applications `vcap-backend-v1` and `vcap-frontend-v1`, AppProject `vcap` | removed |
+| Deployments, Services, Ingresses, and CronJobs in `vcap-v1` | removed |
+| `IngressRouteTCP` `vcap-v1-postgres` and `TLSOption` `vcap-pg` | removed |
+| Traefik entrypoint `vcap-pg-v1` (TCP 15434) | removed |
+| Terraform firewall rule for TCP 15434 | removed and applied. The port is closed. |
+| Hostnames `vcap.upayan.dev` and `api-vcap.upayan.dev` | return 404 |
+| `pg-v1.upayan.dev:15434` | closed |
 
-`host` intentionally **has no DNS record** — it is not meant to resolve. It is what libpq puts in
-the TLS SNI, which is how Traefik selects this edge's certificate. `hostaddr` is what is dialled.
-Creating a record for it would be against this repository's rule that DNS records are adopted from
-the live zone rather than hand-written.
+No listener exists on 15434. No client setting can reach the database. The firewall now allows only
+TCP 22, 80, 443 (Cloudflare ranges), and 6443, UDP 41641, and ICMP.
 
-### Connecting
+## Retained data
 
-```bash
-psql "host=pg-v1.upayan.dev hostaddr=138.201.157.147 port=15434 \
-      dbname=latex_capstone user=app_user sslmode=verify-full \
-      sslrootcert=/path/to/vcap-v1-postgres-edge-ca.crt"
-```
+The namespace `vcap-v1` still holds data. No workload uses it.
 
-Do **not** use `sslmode=require` (it accepts any certificate, so it is not verification) and do not
-disable TLS.
+- PVC `vcap-backend-v1-postgres-data` (static PV `vcap-v1-postgres-data-vps`, Retain). The host
+  path is `/srv/data/vcap-v1-postgres`.
+- PVC `vcap-backend-v1-data` (local-path PV, reclaim policy Retain).
+- Final dump: `/srv/data/vcap-v1-final-dump/vcap-v1-pg_dumpall-20261027.sql.gz`.
+- Secrets `auth-env`, `backend-env`, `pull-secret`, and `vcap-v1-postgres-edge-tls`.
 
-TLS is **terminated at the edge** (Traefik). The client-to-edge leg is encrypted, and Traefik then
-forwards plaintext TCP to the Postgres pod inside the cluster. A session that successfully used
-`sslmode=verify-full` still reports `ssl = f` in `pg_stat_ssl`. That column describes the
-*backend* connection, not yours. Verified 2026-10-03.
+Never start Postgres on the retained data directory. Restore the final dump or start a temporary pod
+on a copy. See Variant A in [`restore-postgres.md`](restore-postgres.md).
 
-Modern clients (libpq 17+, psql 18) offer the ALPN name `postgresql`; the edge's `TLSOption`
-(`vcap-pg` in `vcap-v1`) accepts it. Without that option Traefik answers with alert 120 and the
-handshake fails — measured for v2 on 2026-09-29 and unchanged here.
-
-## The CA certificate
-
-Public, and safe to copy from here (it is a certificate, not a key):
-
-```pem
------BEGIN CERTIFICATE-----
-MIIFezCCA2OgAwIBAgIUOcZ1qaLxodwRvailMrnlpnZS0vUwDQYJKoZIhvcNAQEL
-BQAwRTEuMCwGA1UEAwwlVkNBUCB2MSBQb3N0Z3JlcyBlZGdlIENBICh1cGF5YW4u
-ZGV2KTETMBEGA1UECgwKdXBheWFuLmRldjAeFw0yNjEwMDMxNDA2NDdaFw0zNjA5
-MzAxNDA2NDdaMEUxLjAsBgNVBAMMJVZDQVAgdjEgUG9zdGdyZXMgZWRnZSBDQSAo
-dXBheWFuLmRldikxEzARBgNVBAoMCnVwYXlhbi5kZXYwggIiMA0GCSqGSIb3DQEB
-AQUAA4ICDwAwggIKAoICAQC54SGwyGAaS8VGtR0JNCffhfWuz9tfIMcs066ICRub
-NFFx6zLeOYmP3kyFOLH5xwq8Qve08Vx/5XK7eeOGToi+HjCz2l8jeKtzn1NB4pT+
-uk5Gfk00MlkmzAdTwN4awyfW8kQdiKjrmIrisxHQJsC2ZaUVP6smQ/D69ay8EIRN
-DF5ndl8agnnDdYNT+JtIUIXUGyTeojmXjWhzHNE3eIOgVYIff2A3pIxNf+VYbsEQ
-ocJMawsja9ZxJfd687WE0uIpDtImznuH5LVTjiD1MZOPyg9GgLSLmu+H/y+0wjkW
-+gBUsJy9/hmnpeHAZTQP3JL/tT9dzF/SK0OIVbJz+sYDct9XrnZV7i/+LkQ8j4jz
-OvDA8HCPAJqRopXMH/vH8RUn1UOFokyLPh7BCPczabpSDLlyhPBVS/5nqn5LnmNR
-gJPGe6hyVrJLoQsQKIjq/KCdp9DYxVss0EwmPViQ9ndDQg1LIPO+LUPL26CzIuJn
-lqCndWjmnEWlMdSdLMqUWt9tmUIektuPx+ojBa1b11Pjqn59NRU/bZKktRHMSonO
-XDkAKfUKEiOxn9TZyG5/THfl0izpx5Obv3YERPDfzOiwZTmgJnwTx+R5g9fUpdET
-SCOIVSJJ5pyKGGeWqGGSL0wV/0oIetSlrtQj4xwmcHB6dZcz5JZu1vWrmczAaOko
-6wIDAQABo2MwYTAdBgNVHQ4EFgQU3O76H6IFcbK39Xo1JJcp+/+ZQiswHwYDVR0j
-BBgwFoAU3O76H6IFcbK39Xo1JJcp+/+ZQiswDwYDVR0TAQH/BAUwAwEB/zAOBgNV
-HQ8BAf8EBAMCAQYwDQYJKoZIhvcNAQELBQADggIBADMCZboe/N3z/HOsaId9zfj4
-xka8+zw6Glu7WbkEidoB7Hyg4e36uG7/+vtYbBVEaPsnZyNw7HstRoA5QY2YOgRh
-qsSTIPvA8LXuaEx5hA8x0Pwa74J3mmxHNNnVUNRFK4vsT9BzZPvBNfIQkwgZkrvU
-Ziv2C5gFoVr91Po+GTZSt2AoMzxc9dZ4q5tF8JrvD7KT+KaIPKfux7H+tV3KVxk6
-F2lwYJ/94wQbIy0CsfJWUtuvnNEyJPM0g9KTIlCJaMugngUBcbhTfh42k7js8Ffi
-B6YSGV88Fd7f69Maiqq4+Ecg8zTjYruGzHLCI98c44LkKbAQzVdYB676S1F5ivK6
-4GvryOzwF4Inl4B5hIYfvBY9vKBy58B6XlZGjdEDerXkBYpL4st/aU07udhx5ZiE
-f7/YrVncPXBlUUZIb8SPMkTvySb5+0Ewv8KB2q+VsPMkQoBWNiIRDPq0zgcw0Tk0
-EIa7HUWReU67Mz5AandYYGB2hjXAKv+ukrIhwug299YdAa54VkUm85oQwsiksDK2
-pq4EyCRGctfcpUoJW9Z9RyaNNr5HEToWbbUWtyPkPB+wq0H3STIJkPyI2GQdTNw3
-SLA4ua5YhYYNS1GsQ4jkzIhrdo9jYqU6DQK1FioKm2vsvTag+MB5JCvIhuGEregE
-3A+ZAcH3GLISLyDVT3NA
------END CERTIFICATE-----
-```
-
-## How this differs from v2's retired edge, and why
-
-The retired v2 edge used one `VCAP Postgres edge CA` for its leaves on 15432 and 15433. The key for
-that CA was deliberately never committed and is not in the cluster. A new leaf could not be minted
-under it. The retired edge is documented for history in
-[`vcap-postgres-access.md`](vcap-postgres-access.md). It describes no live path. The v1 edge carries
-**its own CA**, generated once on the workstation for this signing operation. The CA certificate is
-above. The owner holds the CA key like the cluster CA's.
-
-The leaf's SANs are `DNS:pg-v1.upayan.dev` and `IP:138.201.157.147`, valid to 2031-10-02 (CA to
-2036-09-30). Rotation follows `docs/runbooks/rotate-certificates.md`.
-
-## Security posture — read before relying on this
-
-This path is **world-open on purpose** (owner's instruction): the firewall rule is
-`tcp 15434 from 0.0.0.0/0 and ::/0`, with no Cloudflare Access in front, no IP allowlist, and no TLS
-client certificate. The only control between the internet and the database is the PostgreSQL password.
-
-Specifically, it **does not** have the mitigations v2's entry lists and gates on: there is no
-`pg_hba` restriction, no non-superuser application role, and no per-person read-only roles — v1's
-schema and code expect `app_user` to own the database, so those changes would break the
-application, not just narrow the edge. `inventory/ports.yaml`'s 15434 entry records the same.
-
-To narrow it: remove or scope the firewall rule in `terraform/firewall.tf` and apply, and/or delete
-the `IngressRouteTCP` — both are reviewed changes, not prune sweeps (`Prune=false` on the route).
+The earlier v2 retirement is in [`vcap-postgres-access.md`](vcap-postgres-access.md).

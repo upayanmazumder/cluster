@@ -14,7 +14,7 @@ facts were checked on 2026-10-23 with `ssh` and `kubectl` read commands.
 | Volume `vps-data` | 106969476, Terraform-managed, 20 GB | Attached as `/dev/sdb` and mounted at `/srv/data`. Delete protection on. The static `hostPath` PVs use this volume. |
 | Legacy volume 106574315 (staging) and 106574316 (dev) | two 10 GB hcloud CSI volumes | No PV references them. The data moved to `/srv/data`. Teardown is pending. |
 | Legacy volume 106353532 | **does not exist** | No PV references it. The former `smart-home-system-api` Hetzner CSI volume is gone. Two local-path PVCs for that app remain bound in `default` and `smart-home-system-api`. The Deployment is scaled to zero. The loss is deliberate and owner-confirmed. See [`storage.md`](storage.md). |
-| Firewall `vps` | 11692068 | Attached 2026-09-28. The repository declares tcp/22, tcp/80, tcp/443, tcp/6443, tcp/15434, udp/41641, and icmp. TCP 80 and 443 use Cloudflare ranges while `cloudflare_only_ingress` is true. Live rules can lag until Terraform applies `firewall.tf`. See [`networking.md`](networking.md). |
+| Firewall `vps` | 11692068 | Attached 2026-09-28. The repository declares tcp/22, tcp/80, tcp/443, tcp/6443, udp/41641, and icmp. TCP 80 and 443 use Cloudflare ranges while `cloudflare_only_ingress` is true. TCP 15434 was removed and applied on 2026-10-27. No database port is open. Live rules can lag until Terraform applies `firewall.tf`. See [`networking.md`](networking.md). |
 | R2 buckets | `vps-backups`, `vps-tfstate` | Offsite restic snapshots and Terraform state. Location WEUR. No versioning. |
 | Networks, load balancers, floating IPs, snapshots | none | The Kubernetes API uses a host port. |
 | SSH keys (Hetzner project) | `vps-root`, and the owner's personal key (its name is an address — held privately) | |
@@ -58,7 +58,7 @@ can be published without carrying personal data. Delete the private copy once it
 | Role | Access |
 |---|---|
 | Owner / admin | Tailnet (SSH, kubectl), Cloudflare Access allow-list, only tailnet identity in the target design |
-| VCAP v1 tenant | Public Postgres credentials only (open on 15434 with TLS). No tailnet access. |
+| VCAP v1 tenant | None. vcap v1 was retired on 2026-10-27. No public database access exists. |
 
 ## Related
 

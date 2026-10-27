@@ -1,8 +1,12 @@
 # 0009. The VCAP Postgres instances stay publicly reachable, on moved non-default ports
 
+> **Superseded further on 2026-10-27.** The v1 edge on `15434` is also removed. The vcap v1
+> platform was retired and the firewall rule for `15434` is gone. No vcap Postgres port is open.
+> See [`../runbooks/vcap-v1-postgres-access.md`](../runbooks/vcap-v1-postgres-access.md).
+>
 > **Status: SUPERSEDED on 2026-10-23.** The v2 `vcap-dev` and `vcap-staging` workloads were
 > retired. Ports `15432` and `15433` are closed, their Traefik entrypoints and routes are removed,
-> and their firewall rules are removed. Only the v1 edge on `15434` remains. See
+> and their firewall rules are removed. At that date only the v1 edge on `15434` remained. See
 > [`../runbooks/vcap-postgres-access.md`](../runbooks/vcap-postgres-access.md) and
 > [`../../changelog/2026-10.md`](../../changelog/2026-10.md). The text below records the earlier
 > decision. It is not current guidance.
