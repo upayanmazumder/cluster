@@ -1,0 +1,3 @@
+kustomize:
+  images:
+  - ghcr.io/upayanmazumder/gitorgasm/core=ghcr.io/upayanmazumder/gitorgasm/core:latest@sha256:da775c82236b4532af924c3d5d723fab5ba95b71df0a33f067ba88def1262e45
