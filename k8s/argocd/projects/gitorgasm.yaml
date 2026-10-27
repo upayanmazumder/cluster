@@ -38,5 +38,14 @@ spec:
       kind: Ingress
     - group: networking.k8s.io
       kind: NetworkPolicy
+    # Not rendered, only observed. Argo CD drops resource-tree children of kinds the project does
+    # not permit. Without ReplicaSet and Pod the Application has no `status.summary.images`, and
+    # argocd-image-updater skips it (observed 2026-10-27; adhigrahan-radar has the same gap).
+    - group: apps
+      kind: ReplicaSet
+    - group: apps
+      kind: ControllerRevision
+    - group: ""
+      kind: Pod
   orphanedResources:
     warn: true
