@@ -850,7 +850,7 @@ groups:
     labels:
       severity: critical
     annotations:
-      summary: 'No successful class-A backup for over 45 minutes (the class-A timer runs every 30 minutes). Class A covers the vcap-staging raw tree, the vcap-v1 Postgres dump, and the vcap-v1 application data. Check `systemctl status vps-backup-classA` and `journalctl -u vps-backup-classA` on the node.'
+      summary: 'No successful class-A backup for over 45 minutes (the class-A timer runs every 30 minutes). Class A covers the vcap-staging raw tree and the gitorgasm Postgres dump. Check `systemctl status vps-backup-classA` and `journalctl -u vps-backup-classA` on the node.'
   - uid: vps-backup-classc-stale
     title: VPS backup (class C) has not succeeded in over 26 hours
     condition: C
@@ -914,7 +914,7 @@ groups:
     labels:
       severity: warning
     annotations:
-      summary: 'No successful class-C backup in 26h. Class C covers vcap-dev, adhigrahan-radar, meghmitra-postgres, bitvault Postgres and MinIO, rankstack Mongo, Grafana, and both kirro PVCs. The timer runs daily. Check `systemctl status vps-backup-classC` on the node.'
+      summary: 'No successful class-C backup in 26h. Class C covers vcap-dev, vcap-v1 Postgres and application data, adhigrahan-radar, meghmitra-postgres, bitvault Postgres and MinIO, rankstack Mongo, Grafana, and both kirro PVCs. The timer runs daily. Check `systemctl status vps-backup-classC` on the node.'
   - uid: vps-restic-check-stale
     title: VPS backup repository integrity check has not passed in over 10 days
     condition: C
@@ -1301,81 +1301,18 @@ groups:
 
   # --- N8 (P7): authentication-failure visibility ------------------------------------------------
   #
-  # These two are the plan's N8 pair. They are log-based on purpose: an auth failure leaves no metric
-  # behind — the only record of "someone tried the superuser over the network and was refused" is the
-  # server's own log line, and the same is true of a password guessing run against ArgoCD.
+  # The plan's N8 pair was log-based on purpose: an auth failure leaves no metric behind. The
+  # only record of "someone tried a password and was refused" is the server's own log line.
+  # The Postgres half, `vcap-postgres-auth-failures`, was removed on 2026-10-27 with the vcap v1
+  # retirement. No Postgres port is public. The ArgoCD half remains.
   #
   # Observed coverage. A provisioned alert that has never fired is not evidence.
   # `argocd-login-failures` was exercised with deliberate wrong-password logins.
   # Its exact LogQL returned zero series from Loki on 2026-09-30. Loki accepted
   # writes but returned no chunks for any selector. Confirm the Loki read path
-  # before treating either log alert as coverage.
-  #
-  # `vcap-postgres-auth-failures` watches vcap-v1. The public Postgres edge is
-  # live on TCP 15434 with TLS and an additive NetworkPolicy that admits Traefik
-  # to tcp/5432. External clients can therefore attempt authentication. The
-  # rule is correctly shaped and has not observed an event.
+  # before treating this log alert as coverage.
   #
   # **Do not read a clean alert list as coverage.**
-  - uid: vcap-postgres-auth-failures
-    title: VCAP Postgres authentication failures
-    condition: C
-    data:
-      - refId: A
-        relativeTimeRange:
-          from: 600
-          to: 0
-        datasourceUid: loki
-        model:
-          editorMode: code
-          expr: sum by (namespace) (count_over_time({namespace="vcap-v1",container="postgres"} |~ "password authentication failed|no pg_hba.conf entry|pg_hba.conf rejects" [10m]))
-          queryType: instant
-          refId: A
-      - refId: B
-        relativeTimeRange:
-          from: 600
-          to: 0
-        datasourceUid: __expr__
-        model:
-          type: reduce
-          expression: A
-          reducer: last
-          settings:
-            mode: dropNN
-          refId: B
-      - refId: C
-        relativeTimeRange:
-          from: 600
-          to: 0
-        datasourceUid: __expr__
-        model:
-          type: threshold
-          expression: B
-          conditions:
-            - evaluator:
-                type: gt
-                params:
-                  - 50
-              operator:
-                type: and
-              query:
-                params:
-                  - C
-              reducer:
-                type: last
-                params: []
-          refId: C
-    for: 10m
-    # `OK`, not `Alerting`: a healthy v1 database can log no authentication failures. The
-    # `absent()` rules elsewhere cover a missing scrape or log stream.
-    noDataState: OK
-    execErrState: Error
-    labels:
-      # Critical: the v1 Postgres port is public on TCP 15434. A burst of failures is either a
-      # misconfigured client or credential guessing. `pg_hba` and the password are the only guards.
-      severity: critical
-    annotations:
-      summary: 'More than 50 Postgres authentication failures in 10m in vcap-v1. A client is misconfigured, or credentials are being guessed. Review `pg_hba.conf` and the source addresses in the log.'
   - uid: argocd-login-failures
     title: ArgoCD login failures
     condition: C

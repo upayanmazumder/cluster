@@ -47,7 +47,3 @@ spec:
       useAnnotations: true
     - namePattern: adhigrahan-radar
       useAnnotations: true
-    - namePattern: vcap-backend-v1
-      useAnnotations: true
-    - namePattern: vcap-frontend-v1
-      useAnnotations: true

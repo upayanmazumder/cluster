@@ -10,12 +10,3 @@ resources:
   # destination has no namespace — a Namespace is cluster-scoped and the
   # `platform` project permits the `""` destination for exactly this.
   - namespaces-tenants.yaml
-  # N7: the Postgres edge's TLS option — cluster-owned, in the tenant namespaces.
-  #
-  # It lives here, and not in `k8s/apps/vcap-v1/edge/`, because the `vcap` AppProject deliberately
-  # allows that directory only IngressRouteTCP: "the tenant has no reason to touch routing". The
-  # cluster needs a `TLSOption` (to accept libpq's ALPN offer) and the tenant does not, so the file
-  # moved to the app that already owns the tenant namespaces. The tenant's routers reference it by
-  # name; the tenant cannot create or alter it. Namespaced, so each manifest carries its own
-  # `namespace:` — this Application's destination has none, as the header explains.
-  - tlsoptions

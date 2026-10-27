@@ -27,28 +27,9 @@ spec:
       namespace: kube-system
     - server: https://kubernetes.default.svc
       namespace: monitoring
-    # N7 (2026-09-29): the cluster-owned Postgres edge places objects in the *tenant* namespaces —
-    # a `TLSOption` (the thing that accepts the ALPN name libpq 17+ offers; without it every modern
-    # client's handshake fails with alert 120). The `vcap` project deliberately denies `TLSOption`
-    # ("the tenant has no reason to touch routing"), so the object is cluster-owned and applied from
-    # here instead.
-    #
-    # This widens an enumerated list, so, plainly, what it grants: an Application in THIS project may
-    # target these two namespaces. Every app here is cluster-owned and lives in this repository, and
-    # the tenant's own project is untouched — tenants still cannot create a `TLSOption`, alter it, or
-    # point routing anywhere. The tidier long-term shape is a dedicated `cluster-edge` AppProject
-    # owning exactly these destinations; that is a bigger change than the fix needs, and this note
-    # exists so the next reader sees both options rather than re-deriving them.
-    - server: https://kubernetes.default.svc
-      namespace: vcap-dev
-    - server: https://kubernetes.default.svc
-      namespace: vcap-staging
-    # V1-CUTOVER (2026-10-03): v1's namespace, for the same reason and nothing
-    # else — the `vcap-pg` TLSOption that `vcap-v1`'s Postgres edge needs.
-    # A TLSOption is namespaced and the `vcap` project deliberately denies the
-    # kind, so it is cluster-owned and applied from here.
-    - server: https://kubernetes.default.svc
-      namespace: vcap-v1
+    # The tenant-namespace destinations (`vcap-dev`, `vcap-staging`, `vcap-v1`) were removed on
+    # 2026-10-27. They existed only for the Postgres edge `TLSOption` objects. No such object
+    # remains. The retained namespaces are declared through the `""` destination above.
   # S11: was `group: "*" / kind: "*"`. Now exactly the cluster-scoped kinds
   # the platform apps actually manage, taken from their live resource
   # inventories on 2026-09-28. Anything new must be added deliberately --

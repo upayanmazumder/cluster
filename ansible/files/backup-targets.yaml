@@ -18,29 +18,11 @@
        # logical dump before you start any process that writes to the data dir.
   class: A
 
-# vcap-v1 is the live production stack. Back up its Postgres with a logical dump, not a raw path:
-# the server is running, so a raw file copy can be inconsistent. `running_pod()` matches the live
-# pod by name substring. The dump is written inside the pod, copied to the staging dir, then read
-# by restic. The drill imports this dump and compares it with the live database.
-- namespace: vcap-v1
-  workload: vcap-backend-v1-postgres
-  engine: postgres
-  class: A
-
-# Gitorgasm production Postgres (k8s/apps/gitorgasm). Logical dump, same pattern as vcap-v1. The
+# Gitorgasm production Postgres (k8s/apps/gitorgasm). Logical dump. The
 # data dir is a static Retain PV on /srv/data/gitorgasm-postgres.
 - namespace: gitorgasm
   workload: postgres
   engine: postgres
-  class: A
-
-# vcap-v1 application data: uploaded documents and API-generated files. The PVC uses local-path
-# with `Delete`, so a PVC deletion loses this tree. It is static while no writer is active; restic
-# reads it directly.
-- namespace: vcap-v1
-  workload: vcap-backend-v1-data
-  engine: file
-  path: /var/lib/rancher/k3s/storage/pvc-d4b91391-4691-43c4-9590-6bbe1ddf0ad9_vcap-v1_vcap-backend-v1-data
   class: A
 
 - namespace: vcap-dev
@@ -48,6 +30,24 @@
   engine: file
   path: /srv/data/vcap-dev # retired 2026-10-23: Postgres and MinIO workloads are gone.
        # The PVC data is now static. Back up the raw files. See the vcap-staging note above.
+  class: C
+
+# vcap v1 was retired on 2026-10-27. No workload runs, so a logical dump is impossible. The
+# Postgres 16 data dir is a static Retain PV, stopped cleanly before the retirement. restic reads
+# the raw tree. To get a logical dump, start a temporary Postgres 16 pod on a COPY of this tree.
+- namespace: vcap-v1
+  workload: vcap-backend-v1-postgres
+  engine: file
+  path: /srv/data/vcap-v1-postgres
+  class: C
+
+# vcap v1 application data: uploaded documents and API-generated files. The PVC uses local-path.
+# The PV reclaim policy was changed from `Delete` to `Retain` on 2026-10-27. The tree is static,
+# and restic reads it directly.
+- namespace: vcap-v1
+  workload: vcap-backend-v1-data
+  engine: file
+  path: /var/lib/rancher/k3s/storage/pvc-d4b91391-4691-43c4-9590-6bbe1ddf0ad9_vcap-v1_vcap-backend-v1-data
   class: C
 
 # Adhigrahan Radar replaced the application that ran on the meghmitra hostnames. Its SQLite store
