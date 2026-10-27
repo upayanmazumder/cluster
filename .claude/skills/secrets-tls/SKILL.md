@@ -16,16 +16,15 @@ No Sealed Secrets exist. No external secret store exists.
 the old plaintext values remain in git **history**. Rotation order and the post-rotation
 `git filter-repo` + `gitleaks` rewrite live in `../../docs/secrets.md` and are owner-gated.
 
-The Helm **values** files are no longer a plaintext home. As of 2026-10-23 the live vcap Secrets are
-`k8s/apps/vcap-v1/secrets/secrets.sops.yaml`, emitted by a ksops generator in a **separate
-multi-source** of the same Application. The retired v2 directories
-`k8s/apps/vcap/secrets/{dev,staging}/` used the same pattern. That is how the long-standing "a
+The Helm **values** files are no longer a plaintext home. Until 2026-10-27 the vcap Secrets were
+emitted by a ksops generator in a **separate multi-source** of the same Application. That pattern
+applied to vcap v1 and to the vcap v2 dev and staging directories. All of them are retired.
+The retained vcap-v1 Secrets are no longer managed by git. That is how the long-standing "a
 git-sourced Helm chart cannot run ksops" blocker was resolved — not by publishing the chart, which
 the runbook assumed was the only route. `helm-secrets` is still not installed and still not needed.
 
-**Consequence:** the vcap-v1 api/auth/worker Deployments carry `checksum/secret` over the chart's
-own `secret.yaml`, which renders nothing — so **a credential edit no longer rolls those pods**.
-After changing one, run `kubectl rollout restart deploy/<name> -n vcap-v1`.
+**Consequence:** a Helm chart that carries `checksum/secret` over an empty `secret.yaml` does not roll
+pods after a credential edit. After changing such a Secret, run `kubectl rollout restart deploy/<name> -n <ns>`.
 
 Keys: `.sops.yaml` at the repo root names two age recipients (`age-ops`, the owner's workstation key
 at the offline age key's default location; and `age-cluster`, installed as the `argocd/sops-age` Secret and

@@ -41,22 +41,22 @@ table, and [`ports.md`](ports.md) for the network surface.
                                    │ 80/443 from CF IP ranges only
 ┌──────────────── Hetzner Cloud Firewall "vps" (Terraform) ─────────────────┐
 │ in: tcp 80,443 ← Cloudflare ranges | udp 41641 ← any (Tailscale) | icmp   │
-│ tcp 15434 ← any (vcap v1 Postgres, TLS) | tcp 22 ← any (N5 restricts)  │
+│ tcp 22 ← any (N5 restricts) | tcp 6443 ← any (N5 restricts)             │
 └───────────────────────────────────────────────────────────────────────────┘
   vps (cx33) — Ubuntu 24.04 — Ansible-managed
    ├─ /            root disk: OS, k3s, images, Prometheus/Loki TSDB, logs, caches
    ├─ /srv/data    Hetzner volume "vps-data" (20 GB, ext4, delete-protected)
-   │    └─ static hostPath PVs (vcap-v1, vcap-dev, vcap-staging, meghmitra, adhigrahan-radar)
-   ├─ /var/lib/rancher/k3s/storage  local-path PVs (vcap-v1 app data, bitvault, rankstack, kirro)
+   │    └─ static hostPath PVs (retained vcap-v1, vcap-dev, vcap-staging, meghmitra; live adhigrahan-radar, gitorgasm)
+   ├─ /var/lib/rancher/k3s/storage  local-path PVs (retained vcap-v1 app data, bitvault, rankstack, kirro)
    ├─ /var/backups/staging  dumps produced by the backup timer (root disk)
    ├─ vps-backup-class{A,C}.timer (30 min for class A, daily for C) → restic → R2 (bucket lock rule)
-   ├─ Tailscale: the ONLY admin path (SSH, kubectl 6443). vcap Postgres target is 15434 (5432/5433 never reopen)
+   ├─ Tailscale: the ONLY admin path (SSH, kubectl 6443). No database port is open (5432/5433 never reopen)
    └─ k3s (single server, embedded etcd, pinned version)
         ├─ ArgoCD (pinned chart) + repo-server with sops/ksops/helm-secrets (age key)
         ├─ platform: Traefik config (TLSStore default = Origin CA wildcard),
         │           KEDA, image-updater, priority-classes, storage (local-retain SC),
         │           monitoring (Prometheus, Grafana, Loki, Promtail, KSM, node-exporter)
-        └─ apps: cas-api, adhigrahan-radar, mochi, status-page, vcap-v1, and other active apps
+        └─ apps: cas-api, adhigrahan-radar, gitorgasm, mochi, status-page, and other active apps
 External: Cloudflare Access (ArgoCD, Grafana)
 ```
 
@@ -77,7 +77,7 @@ repo-server pod; the host has restic and the backup scripts.
 - The TLS cutover (S7, 2026-09-28): Origin CA wildcard as Traefik's default certificate,
   cert-manager removed — see [`certificates.md`](certificates.md).
 
-### What's now live (status as of 2026-10-23)
+### What's now live (status as of 2026-10-27)
 
 Everything in the target diagram above except the items listed at the end of this section is
 **implemented and verified**. Per-stage detail lives in the linked docs and in
@@ -90,8 +90,9 @@ the architecture review (private, not published) §14/§17.
 - **Ansible** (S3): host baseline, k3s config, `vps-data` mount, and the backup role applied from
   git; `admin_user` is the one role still unapplied (needs the owner's public key).
 - **`vps-data` volume** (S8): 20 GB Hetzner volume mounted at `/srv/data`. The retained
-  PostgreSQL datasets use static `Retain` PVs. The class-A set is `vcap-staging`, the `vcap-v1`
-  Postgres tree, and the `vcap-v1` application data — [`storage.md`](storage.md).
+  PostgreSQL datasets use static `Retain` PVs. The class-A set is `vcap-staging` (raw files) and
+  the `gitorgasm` Postgres (logical dump). The retained `vcap-v1` trees are class C —
+  [`storage.md`](storage.md).
 - **SOPS/age** (S5): every `Secret` manifest under `k8s/` is `secrets.sops.yaml`, decrypted by a
   `ksops` generator in the repo-server. Rotation and the history rewrite are still outstanding —
   [`secrets.md`](secrets.md), [`runbooks/rotate-secrets.md`](runbooks/rotate-secrets.md).
@@ -106,13 +107,15 @@ the architecture review (private, not published) §14/§17.
 - **Orphan cleanup** (S10) and the **dead `docker/` stack**: retired/archived.
 - **Retirement** (2026-10-23): the v2, bitvault, rankstack, kirro, bandit, and upayan-v5
   workloads are removed. Their data, namespaces, Secrets, and retain policies remain.
+- **vcap v1 retirement** (2026-10-27): the `vcap-v1` workloads, the `vcap` AppProject, the Postgres
+  edge on TCP `15434`, and the firewall rule are removed. The data, Secrets, and ConfigMaps remain in
+  namespace `vcap-v1`. See [`storage.md`](storage.md).
 - **Portfolio API** (2026-10-25): `upayan-api` serves `api.upayan.dev` for the Vercel website.
   The retired `upayan-v5` namespace remains separate. The website does not run in this cluster.
 
 **Still not implemented** (all owner-gated): credential rotation and the git-history rewrite (S5);
-re-issuing the serving Origin certificate and revoking the old one (S7); tightening the public v1
-Postgres edge and adding per-person DB roles (S6); the Hetzner firewall's final rules; Cloudflare
-Access in front of ArgoCD/Grafana; and the external-VM restore drill (S12).
+re-issuing the serving Origin certificate and revoking the old one (S7); the Hetzner firewall's final
+rules; Cloudflare Access in front of ArgoCD/Grafana; and the external-VM restore drill (S12).
 
 ## Hardening posture (S11, 2026-09-28)
 
@@ -131,7 +134,7 @@ k3s-owned, so a label would be untracked drift. The retained `vcap-dev` and `vca
 namespaces keep `warn` only. They have no workloads. `rankstack` is a retained namespace with no
 workload and no live chart owner.
 
-**AppProject scopes.** Each project (`apps`, `vcap`, `platform`) enumerates its destination
+**AppProject scopes.** Each project (`apps`, `platform`) enumerates its destination
 namespaces instead of `namespace: "*"`, and `platform` lists the 11 cluster-scoped kinds its apps
 manage instead of `*`. Adding an app therefore also means adding its namespace to the `apps`
 project — a deliberate review gate, and a loud failure (`namespace <x> is not permitted in project

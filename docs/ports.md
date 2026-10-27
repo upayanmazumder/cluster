@@ -25,7 +25,7 @@ Before you add a port, read [`runbooks/add-port.md`](runbooks/add-port.md).
 | 80 | tcp | Traefik web | public | live | Cloudflare-proxied. Repository firewall rule uses Cloudflare ranges |
 | 443 | tcp | Traefik websecure | public | live | Cloudflare-proxied. Repository firewall rule uses Cloudflare ranges |
 | 6443 | tcp | k3s API server | public | remove | Firewall allows it from `0.0.0.0/0`. Target is Tailscale-only |
-| 15434 | tcp | vcap v1 Postgres | public | live | TLS at Traefik with the v1 CA and SNI `pg-v1.upayan.dev`. World-open by owner decision |
+| 15434 | tcp | vcap v1 Postgres | public | removed | vcap v1 retired 2026-10-27. Traefik entrypoint, route, and firewall rule removed. Port closed |
 | 41641 | udp | tailscaled | public | live | Required for NAT traversal |
 | 5432 | tcp | vcap v2 legacy Postgres | public | removed | NodePort duplicates deleted 2026-09-29. v2 workloads retired 2026-10-23. No route and no listener |
 | 5433 | tcp | vcap v2 legacy Postgres | public | removed | Same as 5432 |
@@ -58,14 +58,13 @@ The target architecture below is not fully applied.
 |---|---|---|---|---|
 | 80 | tcp | Traefik web | public | Cloudflare ranges only |
 | 443 | tcp | Traefik websecure | public | Cloudflare ranges only |
-| 15434 | tcp | vcap v1 Postgres | public | TLS required. Owner accepted the exposure |
 | 41641 | udp | tailscaled | public | Unchanged |
 | 22 | tcp | sshd | tailnet | No public rule |
 | 6443 | tcp | k3s API server | tailnet | No public rule |
 | 10250 | tcp | kubelet | tailnet | No public rule |
 
 Everything else stays closed by the Hetzner firewall.
-The v2 paths on `15432` and `15433` are not part of the target.
+The v2 paths on `15432` and `15433` and the v1 path on `15434` are not part of the target.
 Do not reopen them for retained data.
 
 ## Historical exposure
@@ -73,4 +72,5 @@ Do not reopen them for retained data.
 On 2026-09-28 the public exposure was TCP `22`, `80`, `443`, `5432`, `5433`, and `6443`.
 The `5432` and `5433` paths closed on 2026-09-29.
 The v2 workloads, their Traefik entrypoints, and their firewall rules were removed on 2026-10-23.
+On 2026-10-27 the v1 entrypoint `vcap-pg-v1` on TCP `15434` and its firewall rule were removed.
 This block is history. Do not use it as current state.

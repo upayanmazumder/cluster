@@ -20,11 +20,11 @@ Traefik route, and a firewall rule.
 ADR [`0009`](../adr/0009-vcap-postgres-public-ports.md) records the earlier v2 decision. It is
 superseded.
 
-## Current v1 access
+## v1 access (retired 2026-10-27)
 
-The live database is `vcap-v1/vcap-backend-v1-postgres`. Use
-[`vcap-v1-postgres-access.md`](vcap-v1-postgres-access.md). The only Postgres edge is TCP `15434`
-with SNI `pg-v1.upayan.dev`.
+The `vcap-v1` platform was retired on 2026-10-27. Its Postgres edge on TCP `15434` is removed and
+the port is closed. No vcap Postgres edge exists. See
+[`vcap-v1-postgres-access.md`](vcap-v1-postgres-access.md).
 
 ## Retained v2 data
 

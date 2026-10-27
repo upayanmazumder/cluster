@@ -25,11 +25,11 @@ The local repository is `/var/backups/restic`. The offsite repository is Cloudfl
 file `vps_backup_offsite.prom` receives `vps_backup_offsite_last_success_timestamp` after each
 successful copy.
 
-The registry at `files/backup-targets.yaml` has 12 targets: three class A and nine class C. It has
-one `postgres` target (`vcap-v1/vcap-backend-v1-postgres`), no `mongo` target, and eleven `file`
-targets. Every retired Postgres and Mongo dataset is a raw `file` target because no server runs on
-it. Class A source data is about 157 MB, including the 67 MB vcap-v1 Postgres tree that is dumped
-logically. The raw file targets total about 90 MB. Class C includes the 509 MB rankstack tree.
+Class A holds two targets: `vcap-staging` (raw `file`) and `gitorgasm` Postgres (logical dump).
+The vcap v1 Postgres raw directory, the vcap v1 app-data directory, and the final dump directory
+are class C `file` targets. vcap v1 was retired on 2026-10-27. It is no longer a logical `postgres`
+dump. Every retired Postgres and Mongo dataset is a raw `file` target because no server runs on it.
+Read `files/backup-targets.yaml` for the exact target list and sizes. Class C includes the 509 MB rankstack tree.
 
 Each run clears its class staging tree before it dumps. It holds a per-class lock for the whole run.
 A target removed from the registry therefore stops entering new snapshots.
@@ -161,6 +161,6 @@ raw file targets.
 - **2026-09-29, offsite:** the R2 copy was enabled. The first copy completed. Since then the hourly
   timer has copied every tag.
 
-The current drills were rewritten on 2026-10-23 for raw static data and the live `vcap-v1` Postgres
-target. They are deployed with this role revision. Their next scheduled runs are 2026-11-01 (class A)
+The current drills were rewritten on 2026-10-23 for raw static data and the then-live `vcap-v1` Postgres
+target. That target was retired on 2026-10-27. They are deployed with this role revision. Their next scheduled runs are 2026-11-01 (class A)
 and 2026-11-15 (class C).

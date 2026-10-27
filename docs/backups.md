@@ -52,6 +52,15 @@ Their namespaces and PVCs remain. The Postgres and Mongo engines no longer run, 
 backed up as raw, static files. Read [runbooks/restore-postgres.md](runbooks/restore-postgres.md) or
 [runbooks/restore-mongo.md](runbooks/restore-mongo.md) before you recover them.
 
+On 2026-10-27 vcap v1 was retired. Its Postgres data is static now. The registry has three class C
+`file` targets for it: the raw Postgres directory, the application-data directory, and the final
+logical dump directory `/srv/data/vcap-v1-final-dump`. No logical dump runs for `vcap-v1`. To get a
+new logical dump, start a temporary Postgres 16 pod on a copy of the raw tree. Never start Postgres
+on the retained tree.
+
+The registry holds 14 targets. Class A has 2: the `vcap-staging` raw files and the `gitorgasm`
+Postgres logical dump. Class C has 12.
+
 - **Repository: `/var/backups/restic` on the root disk, with an hourly offsite copy in R2.** The
   local repository is deliberately a *different device* from `/srv/data`, so it survives a
   `vps-data` problem and covers accidental deletion, a bad migration and logical corruption; the
@@ -84,7 +93,7 @@ backed up as raw, static files. Read [runbooks/restore-postgres.md](runbooks/res
   for both class A and class C.
   - A snapshot that contains logical dumps gets the strict path: every `*.dump` must start with the
     `PGDMP` magic, be listed by `pg_restore --list`, and import into a scratch database. Class A
-    now has one dump target, `vcap-v1/vcap-backend-v1-postgres`, so the loop imports that dump and
+    now has one dump target, `gitorgasm/postgres`, so the loop imports that dump and
     compares its table list and row counts with the live database. Class C has no dump target, so
     its loop no-ops.
   - Raw `file` targets are checked directly. The drill finds `PG_VERSION` and requires version 16. It
@@ -95,10 +104,12 @@ backed up as raw, static files. Read [runbooks/restore-postgres.md](runbooks/res
   - If the drill cannot run a check it **fails**, writes no metric, and removes its scratch
     namespaces. The class-A metric is separate from the class-C metric, so one class cannot mask the
     other.
-  - **Current result (2026-10-23):** class A restored snapshot `bc2ea61d` in 60.68 s. It imported
-    the `vcap-v1` dump with 416 TOC entries and 58 tables. Its 104 live rows matched 104 restored
-    rows. Class C restored snapshot `a88c92f5` in 17.05 s and matched all 9 targets. Both runs
-    reported success and wrote their metrics. These times cover data restore and validation only.
+  - **Result before the vcap v1 retirement (2026-10-23, historical):** class A restored snapshot
+    `bc2ea61d` in 60.68 s. It imported the `vcap-v1` dump with 416 TOC entries and 58 tables. Its
+    104 live rows matched 104 restored rows. Class C restored snapshot `a88c92f5` in 17.05 s and
+    matched all 9 targets. Both runs reported success and wrote their metrics. These times cover
+    data restore and validation only. The class composition changed on 2026-10-27. Run a new drill
+    to get a current result.
   - **Historical first run (2026-09-28, before retirement):** 139 files and directories restored,
     dumps listed 100 and 409 TOC entries, and imports matched the live database (vcap-staging 57
     tables, meghmitra 17). That measurement applied to the retired logical-dump layout.
@@ -209,13 +220,14 @@ datasets, daily for class C, 12-hourly for etcd.
 1. Per entry in `ansible/files/backup-targets.yaml` (git-tracked registry: namespace, workload,
    engine, class, path):
    - Postgres: `pg_dump -Fc` (+ `pg_dumpall --globals-only`) → the class staging directory. The
-     registry has one Postgres target: `vcap-v1/vcap-backend-v1-postgres`. It is live, so a logical
+     registry has one Postgres target: `gitorgasm/postgres`. It is live, so a logical
      dump is consistent where a raw file copy is not.
    - Mongo: `mongodump --archive --gzip` → the class staging directory. The registry has no Mongo
      target today. The rankstack workload is retired and its PVC is backed up as raw files.
    - `file`: restic reads the exact `path` directly. Current targets are `/srv/data/vcap-staging`,
      `/srv/data/vcap-dev`, `/srv/data/adhigrahan-radar-data`,
-     `/srv/data/meghmitra-postgres`, the vcap-v1 app-data PVC, the bitvault PVCs, the rankstack
+     `/srv/data/meghmitra-postgres`, `/srv/data/vcap-v1-postgres`, the vcap-v1 app-data PVC,
+     `/srv/data/vcap-v1-final-dump`, the bitvault PVCs, the rankstack
      Mongo PVC, the Grafana host path, and both kirro PVCs (`kirro-mock-data` and
      `kirro-voice-logs`).
    - Grafana and Adhigrahan: `sqlite3 .backup` copy, then the file path.
@@ -239,7 +251,7 @@ datasets, daily for class C, 12-hourly for etcd.
    latest snapshot of the requested class, validates raw Postgres and Mongo trees, diffs the
    restored file list against the live paths, and removes its scratch namespaces. The import loop
    runs for registry targets with `engine: postgres` or `engine: mongo`. Class A has one `postgres`
-   target, `vcap-v1/vcap-backend-v1-postgres`, so the drill imports that dump and compares it with
+   target, `gitorgasm/postgres`, so the drill imports that dump and compares it with
    the live database. Class C has no dump or archive target, so its import loop does nothing. See
    [`ansible/roles/backup/templates/vps-restore-test.sh.j2`](../ansible/roles/backup/templates/vps-restore-test.sh.j2).
    Quarterly manual full DR drill on a temporary VM — see the architecture review (private, not

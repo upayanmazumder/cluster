@@ -9,7 +9,7 @@ server, primary IPs, SSH keys, data volume, firewall and attachment, both R2 buc
 Access applications and policies, and the zone settings override. The 2026-10-23 apply removed
 inbound TCP `15432`, TCP `15433`, TCP `7881`, and UDP `7882` from `hcloud_firewall.vps`. The plan was
 `0 to add, 1 to change, 0 to destroy`. A rule-by-rule diff confirmed that only those four rules left
-the ruleset. See the changelog for the full apply history.
+the ruleset. A later apply on 2026-10-27 removed inbound TCP `15434` (vcap v1 Postgres). The firewall now allows only TCP 22, 80, 443 (Cloudflare ranges), TCP 6443, UDP 41641, and ICMP. No database port is open. See the changelog for the full apply history.
 
 State lives in the `vps-tfstate` R2 bucket (`s3://vps-tfstate/vps/terraform.tfstate`) since
 2026-09-29 (TF-001). `backend.tf` holds the live S3 backend. R2 has no bucket versioning, so the only
@@ -26,7 +26,7 @@ before every state-writing command.
 | `variables.tf` | Known IDs (server, volumes-not-managed) + Access allow-list + emergency-SSH escape hatch |
 | `hcloud.tf` | Server (imported, verified via API) + primary IPs (protection/auto_delete applied) |
 | `ssh-keys.tf` | Both SSH keys, imported with real public-key bodies fetched from the Hetzner API |
-| `firewall.tf` | Firewall allow-list, attached and live. Removed the v2 and kirro ports on 2026-10-23 |
+| `firewall.tf` | Firewall allow-list, attached and live. Removed the v2 and kirro ports on 2026-10-23 and TCP 15434 on 2026-10-27 |
 | `cloudflare.tf` | Zone settings, imported and applied. R2 buckets. **No DNS records** |
 | `imports.tf` | Declarative `import` blocks — all 5 importable resources active with real, verified IDs |
 | `outputs.tf` | Server IDs/IPs, firewall ID, bucket names |

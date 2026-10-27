@@ -30,12 +30,12 @@ images: the image tarballs come back with the restic `etcd` snapshot (step 6)
 
 | Data | Location | Survives server loss? | Recovery source |
 |---|---|---|---|
-| `vcap-v1` Postgres | `vps-data` volume, `/srv/data/vcap-v1-postgres` | Yes, if the volume is re-attached | Volume. R2 class-A logical dump is the fallback. |
+| `vcap-v1` Postgres (retired 2026-10-27) | `vps-data` volume, `/srv/data/vcap-v1-postgres` and `/srv/data/vcap-v1-final-dump` | Yes, if the volume is re-attached | Volume. R2 class-C raw copy and final dump are the fallback. |
 | `vcap-staging` raw trees | `vps-data`, `/srv/data/vcap-staging` | Yes | Volume. R2 class-A raw copy is the fallback. |
 | `vcap-dev` raw trees | `vps-data`, `/srv/data/vcap-dev` | Yes | Volume. R2 class-C raw copy is the fallback. |
 | `meghmitra-postgres` | `vps-data`, `/srv/data/meghmitra-postgres` | Yes | Volume. R2 class-C raw copy is the fallback. |
 | Adhigrahan Radar data | `vps-data`, `/srv/data/adhigrahan-radar-data` | Yes | Volume. R2 class-C copy is the fallback. |
-| `vcap-v1` application data | root disk, local-path PVC | No | R2 class-A raw copy. |
+| `vcap-v1` application data (retired 2026-10-27) | root disk, local-path PVC (reclaim policy Retain) | No | R2 class-C raw copy. |
 | bitvault Postgres and MinIO | root disk, local-path PVs | No | R2 class-C raw copy. |
 | rankstack Mongo | root disk, local-path PV | No | R2 class-C raw copy. |
 | `kirro` mock data and voice logs | root disk, local-path PVs | No | R2 class-C raw copy. |
@@ -118,12 +118,12 @@ export AGE_CLUSTER_KEYS_FILE=/dev/shm/age-cluster/keys.txt   # from the password
 k8s/bootstrap/bootstrap.sh
 ```
 
-`bootstrap.sh` applies the credentials from `k8s/platform/argocd/secret/secrets.sops.yaml`. The
-`vcap-v1` application repositories are private. ArgoCD reads them through `repo-creds-devlabs`, the
-URL-prefix credential for the `upayanmazumder-DevLabs` organization. Keep that Secret. The
-`repo-vcap-backend` and `repo-vcap-frontend` entries are **not** v1 requirements: they target the
-retired `vitscopesoftwareteam/VCAP-STAGING-*` repositories and exist for historical recovery only.
-Keep `git-creds`, because the cluster repository itself still uses it.
+`bootstrap.sh` applies the credentials from `k8s/platform/argocd/secret/secrets.sops.yaml`. ArgoCD
+reads the private `upayanmazumder-DevLabs` repositories through `repo-creds-devlabs`, the
+URL-prefix credential for that organization. Keep that Secret. The `repo-vcap-backend` and
+`repo-vcap-frontend` entries target the retired `vitscopesoftwareteam/VCAP-STAGING-*` repositories.
+They exist for historical recovery only. Keep `git-creds`, because the cluster repository itself
+still uses it.
 
 The failure mode is a `ComparisonError: failed to get git client for repo` on every Application.
 That happened on 2026-09-28 when the Secrets were re-homed (see
@@ -141,9 +141,10 @@ The old claim that `quay.io/minio/minio` returns 401 and that the owner's mirror
 is historical. The mirror `ghcr.io/upayanmazumder/mirror/minio` exists, and no current workload uses
 it.
 
-**7. Restore what the volume does not hold from R2.** Class C holds nine raw trees. They are
-`vcap-dev`, Adhigrahan Radar, `meghmitra-postgres`, both bitvault PVCs, rankstack Mongo, both kirro
-PVCs, and Grafana. Use the newest matching snapshot:
+**7. Restore what the volume does not hold from R2.** Class C holds the raw trees `vcap-dev`,
+Adhigrahan Radar, `meghmitra-postgres`, both bitvault PVCs, rankstack Mongo, both kirro PVCs, and
+Grafana. It also holds the retired `vcap-v1` Postgres tree, the `vcap-v1` application data, and the
+`vcap-v1` final dump. Use the newest matching snapshot:
 
 ```bash
 ssh vps 'set -a; . /etc/vps-backup/env; . /etc/vps-backup/r2.env; set +a; \
@@ -151,8 +152,8 @@ ssh vps 'set -a; . /etc/vps-backup/env; . /etc/vps-backup/r2.env; set +a; \
 # Then restore the chosen snapshot into a scratch path and move the files into place.
 ```
 
-The class-A snapshot holds the `vcap-v1` Postgres dump plus the raw `vcap-staging` tree and the raw
-`vcap-v1` application data. Restore those to their static paths or their local-path PVC paths.
+The class-A snapshot holds the `gitorgasm` Postgres dump and the raw `vcap-staging` tree. The
+`vcap-v1` data is in class C. See Variant A in [`restore-postgres.md`](restore-postgres.md).
 
 If the R2 copy is unavailable, the S0 bundle and the workstation mirror remain. Without either,
 anything written after the S0 snapshot is lost.
@@ -186,7 +187,6 @@ addresses. Only a deleted IP requires record changes. The Origin CA wildcard in
 ```bash
 kubectl get nodes                                  # must be `vps`, Ready
 kubectl get applications -n argocd -o wide
-curl -s -o /dev/null -w '%{http_code}\n' https://vcap.upayan.dev          # 200
 curl -s -o /dev/null -w '%{http_code}\n' https://argocd.upayan.dev        # 302
 curl -s -o /dev/null -w '%{http_code}\n' https://status-page.upayan.dev   # 200
 ```
@@ -204,8 +204,8 @@ ssh vps 'cat /var/lib/node_exporter/textfile_collector/vps_backup_offsite.prom'
 has been run by hand against the live cluster, but the full sequence has not run on a throwaway VM.
 Treat every RTO figure as a target.
 
-The monthly drills do run. The class-A drill restores the class-A snapshot, imports the `vcap-v1`
-logical dump, and compares row counts. It also validates every registered raw `file` tree. The
+The monthly drills do run. The class-A drill restores the class-A snapshot and imports the logical
+dumps. It compares row counts. It also validates every registered raw `file` tree. The
 class-C drill restores the class-C snapshot, validates every raw tree, and checks the Mongo tree.
 Both drills fail when a registered path is missing. On 2026-10-23, class A passed in 60.68 s and
 class C passed in 17.05 s. These times cover data restore and validation only. They do not cover
