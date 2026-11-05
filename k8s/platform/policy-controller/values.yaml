@@ -1,6 +1,6 @@
 # sigstore/policy-controller chart 0.10.8, controller v0.15.1; see ADR 0010.
 #
-# What this is: an admission webhook that verifies Sigstore signatures on container images. It is
+# An admission webhook that verifies signed publication attestations for container images. It is
 # scoped to ONE namespace (`gitorgasm`) and ONE image (`ghcr.io/upayanmazumder/gitorgasm/core`);
 # the rule itself is the ClusterImagePolicy in ../policy-controller-policies/.
 #
@@ -44,11 +44,9 @@ webhook:
   # on the two ClusterImagePolicy-object webhooks, which see only ClusterImagePolicy and TrustRoot
   # writes and never a pod).
   #
-  # `Ignore` while the policy is in `mode: warn`: warn mode admits everything anyway, so failing
-  # closed during a webhook outage would cost gitorgasm availability and buy no protection.
-  # WHEN FLIPPING THE POLICY TO `mode: enforce` (ADR 0010, "Follow-up"), flip this to `Fail` in the
-  # same PR. With `Ignore` an enforced policy is bypassed whenever the webhook is down.
-  failurePolicy: Ignore
+  # Fail closed with mode: enforce; an unavailable verifier must not bypass the policy.
+  # Rollback restores BOTH Ignore and mode: warn together. Scope excludes other namespaces.
+  failurePolicy: Fail
 
   # IMAGES WITHOUT A POLICY -- must be `allow`.
   # The chart/controller default is `deny`: a pod image that matches NO ClusterImagePolicy is
@@ -81,8 +79,8 @@ webhook:
 
   # Priority class is deliberately left at the default (0), not `low-priority`. That class is for
   # workloads the node may reclaim first; this is a security control and should outlive them.
-  # It is not `system-*-critical` either: under `Ignore` its loss degrades gitorgasm's checks, not
-  # the cluster.
+  # It is not system-*-critical either: under Fail, its outage blocks gitorgasm admission,
+  # but the namespace selector excludes the rest of the cluster and its own recovery.
 
   # Single-node resource budget, not a measured usage claim. Revisit with
   # `kubectl top pod -n policy-controller` after rollout.

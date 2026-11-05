@@ -2,15 +2,15 @@
 # Controller v0.15.1 does not implement bundle image-signature verification; an attestation
 # selects its supported cryptographic bundle path. See ADR 0010 and the failed first smoke.
 #
-# Stay warn/Ignore until live signed/unsigned/wrong-identity admission smoke succeeds.
-# Promotion must pair mode: enforce with webhook.failurePolicy: Fail in values.yaml.
-# Rollback restores both warn and Ignore. Admission scope remains gitorgasm namespace only.
+# Enforce after verified warning-mode positive/unsigned admission controls (ADR 0010).
+# Keep webhook.failurePolicy: Fail paired with mode: enforce. Rollback restores both
+# warn and Ignore; namespace scope and experimental-discovery prohibition stay unchanged.
 apiVersion: policy.sigstore.dev/v1beta1
 kind: ClusterImagePolicy
 metadata:
   name: gitorgasm-core-signed
 spec:
-  mode: warn
+  mode: enforce
   images:
     # Match this exact repository, not core-other or core/nested. The validator receives the
     # normalized digest reference; tag form also covers workload admission before resolution.
