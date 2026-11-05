@@ -1,6 +1,6 @@
 # 0010 — Verify gitorgasm publication attestations with a namespace-scoped Sigstore controller
 
-**Status:** Accepted, partially implemented (installed; corrective attestation policy remains warning-only)
+**Status:** Accepted (enforce/Fail configured after successful corrected warning-mode verification)
 **Date:** 2026-11-05
 
 ## Context
@@ -26,39 +26,43 @@ Explicitly set `enable-oci11: "false"`. The controller's experimental discovery 
 
 Both selectors also explicitly include `webhooks.knative.dev/exclude DoesNotExist`, matching the controller-injected selector observed live. Keep `metadata.name In [gitorgasm]` alongside it; do not ignore selector drift.
 
-Begin with `spec.mode: warn` and workload `failurePolicy: Ignore`. Failed signatures warn rather than prevent restarts, and controller outages cannot block gitorgasm during observation. The policy-object admission webhooks remain upstream fail-closed; they only handle policy/trust-root writes, not application workloads. No warning-only rollout is represented as enforcement.
+Set `spec.mode: enforce` and workload `failurePolicy: Fail` together. Missing or invalid publication attestations are rejected; webhook unavailability cannot bypass verification. This promotion follows successful corrected warning-mode controls recorded below. Policy-object webhooks also remain fail-closed.
 
 Use one controller replica on node `vps`, requests 50m CPU/128Mi, limits 250m/384Mi, and no single-replica disruption budget. These are configured budgets, not measured consumption. The namespace uses the shared Pod Security baseline. A separate policies Application retries bootstrap while CRDs and the webhook become available. Server-side apply avoids CRD annotation-size limits. ArgoCD ignores only controller-generated certificate/rule/config data; namespace selectors and failure policies remain reconciled.
 
-## Promotion gates and live validation
+## Verified promotion and recurring admission checks
 
-The installation is merged; its failed initial smoke stopped promotion. The corrective policy stays warn/Ignore. All persistent changes go through reviewed GitOps PRs.
+PR #85 corrected bundle verification and both Applications are Synced/Healthy with the policy Ready. `Main` independently verified the publication attestation for run `42072655836`, job `127407321212`, index `sha256:781672f7fdd17a459770e7a4937b06823fffb467318bdb68f5fa7be2acbfb6cd`; api/worker specs use that index. Warning-mode live positive admission had no policy warning; unsigned admission warned `no valid bundles exist in registry`; Postgres and the unsigned image in `default` had no policy warnings. Controller logs correlated the positive/negative requests.
 
-1. Confirm both Applications are Synced/Healthy, controller Available and policy Ready. Confirm both exact namespace selectors and the `policy-controller` Service namespace.
-2. Set `ATTESTED_IMAGE` to the exact index output from the updated publish workflow. Independently verify its publication attestation, and confirm api/worker workload specs use that index, not a tag or runtime platform-specific child imageID.
+The wrong-identity check independently failed cosign verification when expecting caller `ci.yml` instead of actual `image-publish.yml`. This is certificate-verifier negative evidence, **not** a live wrong-signer admission test.
+
+Repeat these checks after enforcement sync and on verifier upgrades:
+
+1. Confirm both Applications Synced/Healthy, policy Ready, exact namespace selectors and failurePolicy Fail.
+2. Verify the attestation and confirm api/worker workload-spec digests:
 
    ```bash
    cosign verify-attestation \
      --type https://gitorgasm.upayan.dev/attestations/image-publish/v1 \
      --certificate-identity 'https://github.com/upayanmazumder/gitorgasm/.github/workflows/image-publish.yml@refs/heads/main' \
      --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-     "$ATTESTED_IMAGE"
+     ghcr.io/upayanmazumder/gitorgasm/core@sha256:781672f7fdd17a459770e7a4937b06823fffb467318bdb68f5fa7be2acbfb6cd
    kubectl -n gitorgasm get deployments -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.spec.template.spec.containers[*].image}{"\n"}{end}'
    ```
 
-   Earlier image-signature verification alone does not satisfy this attestation gate.
-3. In gitorgasm, the attested positive must have no failed-policy warning; unsigned and wrong-identity controls must warn. Inspect corresponding controller validation results to rule out fail-open bypass. Postgres and the unsigned control in an unselected existing namespace must have no warning from this policy. Use server-side dry-run only, without creating live pods.
+   Standalone image-signature verification is not a substitute for this attestation check.
+3. Use server-side dry-runs only: attested positive must be admitted without policy warnings; unsigned core must be **rejected** under enforcement. Postgres and the unsigned control in `default` remain admitted without this policy's warning. Confirm matching controller results; do not infer rejection from a successful render.
 
    Concrete controls (server-side dry-run only; run after the controller is healthy):
 
    ```bash
    kubectl -n gitorgasm run signature-positive --restart=Never --dry-run=server -o yaml \
-     --image="$ATTESTED_IMAGE"
+     --image=ghcr.io/upayanmazumder/gitorgasm/core@sha256:781672f7fdd17a459770e7a4937b06823fffb467318bdb68f5fa7be2acbfb6cd
    kubectl -n gitorgasm run signature-negative --restart=Never --dry-run=server -o yaml \
      --image=ghcr.io/upayanmazumder/gitorgasm/core@sha256:7410b54ac65caa9dc0ce7298fecf2d8b2dc58975c29f18c97c7ffb21630e18c9
    ```
 
-4. Open a second PR changing `mode: warn` to `enforce` and workload `failurePolicy: Ignore` to `Fail` together, only after the preceding evidence is recorded. After it deploys, repeat server-side dry-runs: signed index admitted; unsigned same-repository digest rejected; Postgres and unselected namespaces unaffected. Record exact warnings/rejections and the tested digests in the changelog. Never infer denial from a successful render or from cosign verification alone.
+The promotion PR configures enforce/Fail; its author does not claim post-merge rejection before the live check runs. Record the actual enforcement admission/rejection outputs in the changelog after sync.
 
 ## Alternatives rejected
 
@@ -72,15 +76,15 @@ The installation is merged; its failed initial smoke stopped promotion. The corr
 
 The cluster gains a namespace-scoped provenance check without changing tenant manifest ownership. Admission now depends on GHCR signature discovery and public Sigstore trust-root services. The controller has upstream cluster-scoped read permissions (including Secret/ServiceAccount reads for registry authentication); namespace scope limits webhook admission reach, not its RBAC. The controller creates its own serving-certificate Secret at runtime; no plaintext credentials are committed.
 
-Warn mode remains fail-open by design. Enforced fail-closed operation later makes gitorgasm availability depend on this one replica and external verification services; it still cannot block other namespaces or its own recovery. Registry/authentication or TUF failures must be diagnosed rather than bypassed with insecure flags. Review measured resources after rollout.
+Fail-closed operation makes gitorgasm admission depend on this replica and external verification services; it cannot block other namespaces or the controller's own recovery. Registry/authentication or TUF failures must be diagnosed, not bypassed with insecure flags. Review measured resources after rollout.
 
 Rollback promotion by reverting its GitOps commit, restoring **both** warn and Ignore. To remove the installation, first revert policy enforcement, then remove the policies Application before the controller; do not leave fail-closed webhooks pointing at a deleted Service. Keep CRDs/policy ownership in mind before removing an Application; do not delete unrelated policies or namespaces.
 
 ## Evidence and upstream references
 
-- **2026-11-05 independent signature verification:** coordinating agent `Main` reports successful `cosign verify` using container `ghcr.io/sigstore/cosign/cosign:v3.1.4` for index `sha256:49cc0ad5c56dc7efbcabbe6982a7bf30fe3ca030e39929039ffa0ff0afb22232`, with exactly the issuer and reusable-workflow SAN specified above. Claims validation, offline transparency-log inclusion and code-signing certificate checks passed. This confirms the configured signer identity; it does not establish that the not-yet-deployed admission controller accepts the bundle. Controller health and positive/negative admission remain separate promotion gates.
+- **2026-11-05 earlier image-signature verification:** `Main` successfully verified index `sha256:49cc0ad5c56dc7efbcabbe6982a7bf30fe3ca030e39929039ffa0ff0afb22232` with cosign v3.1.4 and exact issuer/SAN. That established the signer identity but was insufficient for admission: the subsequent unsupported-bundle failure required the attestation correction. Current promotion relies on the corrected attestation and live controls above.
 - **2026-11-05 unsigned negative control:** `Main` confirmed existing core index `sha256:7410b54ac65caa9dc0ce7298fecf2d8b2dc58975c29f18c97c7ffb21630e18c9` from publish run `42058299719`. Exact-identity/issuer cosign verification failed with **no signatures found**, exit **10**. Use that existing image for negative server-dry-run admission, not a nonexistent digest whose registry lookup failure could obscure policy behavior.
-- **2026-11-05 first smoke failed:** `Main` reports healthy/Ready controller, but signed and unsigned controls both warned `bundle support for image signatures is not yet implemented`. This invalidated the original assumption and halted enforcement. The correction requires a publication attestation; corrected live admission is not yet proven.
+- **2026-11-05 first smoke failed, subsequently corrected:** the healthy/Ready controller warned `bundle support for image signatures is not yet implemented` for both image-signature controls. PR #85 switched to cryptographic publication attestations. The successful corrected warning-mode evidence above is the basis for enforcement, not the initial failed smoke.
 - Source: [controller attestation dispatch/experimental shortcut](https://github.com/sigstore/policy-controller/blob/v0.15.1/pkg/webhook/validation.go), [authority predicate evaluation](https://github.com/sigstore/policy-controller/blob/v0.15.1/pkg/webhook/validator.go), [normal cosign bundle verifier](https://github.com/sigstore/cosign/blob/v3.0.5/pkg/cosign/verify.go). The normal path calls `VerifyNewBundle` with artifact-digest policy and the in-toto subject verifier.
 - [`policy-controller` Application](../../k8s/argocd/applications/platform/policy-controller.yaml), [values](../../k8s/platform/policy-controller/values.yaml), and [policy Application](../../k8s/argocd/applications/platform/policy-controller-policies.yaml).
 - [Signature policy](../../k8s/platform/policy-controller-policies/gitorgasm-core.yaml) and [platform permissions](../../k8s/argocd/projects/platform.yaml).
