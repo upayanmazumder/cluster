@@ -1,0 +1,105 @@
+# sigstore/policy-controller chart 0.10.8, controller v0.15.1; see ADR 0010.
+#
+# What this is: an admission webhook that verifies Sigstore signatures on container images. It is
+# scoped to ONE namespace (`gitorgasm`) and ONE image (`ghcr.io/upayanmazumder/gitorgasm/core`);
+# the rule itself is the ClusterImagePolicy in ../policy-controller-policies/.
+#
+# Rendered and checked with `helm template` in scripts/helm-template-all.sh. Scope and
+# rollout settings are explicit even when they coincide with chart defaults.
+
+# Keep the chart's CRDs (ClusterImagePolicy, TrustRoot). Argo CD applies them with the chart.
+installCRDs: true
+
+webhook:
+  replicaCount: 1
+  # Chart default v0.13.1 predates OCI 1.1 discovery and cosign v3. Pin v0.15.1
+  # for bundles published by cosign 3.1.4; digest resolved from GHCR's v0.15.1 index.
+  image:
+    version: sha256:0492bb264fb1d9bdc8e3f343ef542cc85b7dd7c7fd8d9524b453c2bd31a1d128
+
+  # SCOPE -- the only thing that decides which pods this webhook ever sees.
+  #
+  # The chart default selects namespaces labelled `policy.sigstore.dev/include=true`. That label
+  # is not used here. The `gitorgasm` Namespace object is owned by the gitorgasm repository
+  # (deploy/kustomize/base/namespace.yaml), so the label would have to be added there, and an
+  # opt-in that the tenant repository controls is an opt-out the tenant repository controls too.
+  # `kubernetes.io/metadata.name` is set by the API server on every namespace and cannot be
+  # edited, so this selector lives only in this repository and needs nothing from the tenant.
+  #
+  # Consequences, each wanted:
+  #   - kube-system, argocd, keda, monitoring, traefik, and every other app namespace never reach
+  #     the webhook, so an outage of it cannot block them.
+  #   - the `policy-controller` namespace is not selected, so the webhook can never block its own
+  #     pods from starting (no admission deadlock after a node reboot).
+  # To add a namespace later, append to `values` and review it as a new trust decision.
+  namespaceSelector:
+    matchExpressions:
+      - key: kubernetes.io/metadata.name
+        operator: In
+        values: ["gitorgasm"]
+
+  # FAILURE POLICY -- applies to the pod/workload webhooks above only (the chart hard-codes `Fail`
+  # on the two ClusterImagePolicy-object webhooks, which see only ClusterImagePolicy and TrustRoot
+  # writes and never a pod).
+  #
+  # `Ignore` while the policy is in `mode: warn`: warn mode admits everything anyway, so failing
+  # closed during a webhook outage would cost gitorgasm availability and buy no protection.
+  # WHEN FLIPPING THE POLICY TO `mode: enforce` (ADR 0010, "Follow-up"), flip this to `Fail` in the
+  # same PR. With `Ignore` an enforced policy is bypassed whenever the webhook is down.
+  failurePolicy: Ignore
+
+  # IMAGES WITHOUT A POLICY -- must be `allow`.
+  # The chart/controller default is `deny`: a pod image that matches NO ClusterImagePolicy is
+  # rejected, regardless of the policy's own `mode`. The gitorgasm namespace also runs
+  # `postgres:18.6-alpine`, which no policy covers. With the default, every Postgres restart would
+  # fail even in warn mode. `allow` is safe here only because the namespaceSelector above already
+  # limits the webhook to one namespace.
+  configData:
+    no-match-policy: allow
+
+  # Single node, single replica. The chart default PodDisruptionBudget (minAvailable: 1) would make
+  # the only replica un-evictable and block `kubectl drain` during k3s upgrades.
+  podDisruptionBudget:
+    enabled: false
+
+  # Pin to the `vps` node (repo convention). Setting `affinity` replaces the chart's default
+  # anti-affinity, which has nothing to spread across on one node anyway.
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values:
+                  - vps
+
+  # Priority class is deliberately left at the default (0), not `low-priority`. That class is for
+  # workloads the node may reclaim first; this is a security control and should outlive them.
+  # It is not `system-*-critical` either: under `Ignore` its loss degrades gitorgasm's checks, not
+  # the cluster.
+
+  # Single-node resource budget, not a measured usage claim. Revisit with
+  # `kubectl top pod -n policy-controller` after rollout.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 384Mi
+
+  # Pod-level security context (the chart's `securityContext` is the POD level; its
+  # `podSecurityContext` is the container level and already drops all capabilities, forbids
+  # privilege escalation, sets a read-only root filesystem and runs as uid 1000). Adding these two
+  # makes the pod satisfy the Pod Security `restricted` profile that the namespace warns on.
+  securityContext:
+    enabled: true
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+
+# Pin the chart's post-delete cleanup tool too; do not inherit latest-dev.
+leasescleanup:
+  image:
+    version: sha256:aa9a5e5bc34eb7d04d1d9dd0d34515e62ceedca55fe45268c8bb26517c993fa4

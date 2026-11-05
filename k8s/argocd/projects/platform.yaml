@@ -11,6 +11,7 @@ spec:
     - https://github.com/upayanmazumder/cluster
     - https://argoproj.github.io/argo-helm
     - https://kedacore.github.io/charts
+    - https://sigstore.github.io/helm-charts
   # S11: destinations enumerated instead of `namespace: "*"`. An app that
   # needs a new namespace fails loudly ("namespace X is not permitted in
   # project platform") instead of silently deploying anywhere.
@@ -27,6 +28,8 @@ spec:
       namespace: kube-system
     - server: https://kubernetes.default.svc
       namespace: monitoring
+    - server: https://kubernetes.default.svc
+      namespace: policy-controller
     # The tenant-namespace destinations (`vcap-dev`, `vcap-staging`, `vcap-v1`) were removed on
     # 2026-10-27. They existed only for the Postgres edge `TLSOption` objects. No such object
     # remains. The retained namespaces are declared through the `""` destination above.
@@ -57,6 +60,8 @@ spec:
       kind: PriorityClass
     - group: ""
       kind: Namespace
+    - group: policy.sigstore.dev
+      kind: ClusterImagePolicy
     - group: ""
       kind: PersistentVolume
   namespaceResourceWhitelist:

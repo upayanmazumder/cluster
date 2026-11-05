@@ -1,0 +1,32 @@
+# The ClusterImagePolicy objects for policy-controller. Separate from `policy-controller` so the
+# controller, its CRDs and its webhook converge first and the policy can be changed (the
+# warn -> enforce flip) without touching the chart. The `ClusterImagePolicy` kind exists only
+# after the `policy-controller` Application has synced its CRDs, so the first sync of this
+# Application can fail; `retry` re-runs it until the CRD and the webhook are up.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+  name: policy-controller-policies
+  namespace: argocd
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/upayanmazumder/cluster
+    targetRevision: main
+    path: k8s/platform/policy-controller-policies
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m
