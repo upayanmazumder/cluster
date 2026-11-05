@@ -155,7 +155,8 @@ only**, with exact workflow identity and repository/ref CUE constraints. **Enfor
 live and verified:** attested core admitted, unsigned core denied; Postgres and default-namespace
 controls admitted. Experimental discovery remains disabled. Postgres has no attestation
 requirement, but namespace-wide image normalization caused separate StatefulSet image drift;
-the tenant canonical-digest pin is pending. See [ADR 0010](adr/0010-gitorgasm-image-signatures.md)
+the tenant canonical-digest pin resolved it and gitorgasm is now Synced/Healthy.
+See [ADR 0010](adr/0010-gitorgasm-image-signatures.md)
 for evidence, recurring checks and paired warn/Ignore rollback.
 
 ## Ownership model (target)

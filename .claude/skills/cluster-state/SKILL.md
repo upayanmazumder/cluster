@@ -86,7 +86,7 @@ generator; "Explicit" rows are `k8s/argocd/applications/apps/<app>.yaml`.
 | `keda` | `keda` | No ScaledObjects remain for vcap |
 | `monitoring` | `monitoring` | Prometheus + Grafana + Loki + Promtail |
 | `traefik-config` | `traefik` | patches k3s's built-in `kube-system/traefik` via `HelmChartConfig`. No Postgres TCP entrypoint exists. The v2 entrypoints were removed on 2026-10-23. The `vcap-pg-v1` entrypoint (TCP 15434) was removed on 2026-10-27. |
-| `policy-controller` / `policy-controller-policies` | `policy-controller` / cluster-scoped policy | Chart 0.10.8, controller v0.15.1 digest pin; gitorgasm publication attestation enforce/Fail verified live (attested admitted, unsigned denied). Experimental discovery disabled. Postgres admitted but mutator-induced image drift needs tenant canonical pin; default namespace is outside scope. See `docs/adr/0010-gitorgasm-image-signatures.md`. |
+| `policy-controller` / `policy-controller-policies` | `policy-controller` / cluster-scoped policy | Chart 0.10.8, controller v0.15.1 digest pin; gitorgasm publication attestation enforce/Fail verified live (attested admitted, unsigned denied). Experimental discovery disabled. Tenant PR #76 canonical Postgres pin resolved mutation drift; gitorgasm and both controller apps Synced/Healthy. Default namespace remains outside scope. See `docs/adr/0010-gitorgasm-image-signatures.md`. |
 
 ### VCAP (retired)
 
