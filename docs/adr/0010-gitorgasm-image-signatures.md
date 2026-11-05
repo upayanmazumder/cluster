@@ -36,6 +36,20 @@ PR #85 corrected bundle verification and both Applications are Synced/Healthy wi
 
 The wrong-identity check independently failed cosign verification when expecting caller `ci.yml` instead of actual `image-publish.yml`. This is certificate-verifier negative evidence, **not** a live wrong-signer admission test.
 
+### Final enforced admission evidence (2026-11-05)
+
+After PR #86 merged, `Main` verified both controller Applications **Synced/Healthy** and completed live server-side dry-runs under enforce/Fail:
+
+| Control | Observed enforced result |
+|---|---|
+| Attested core index `sha256:781672f7fdd17a459770e7a4937b06823fffb467318bdb68f5fa7be2acbfb6cd` in gitorgasm | Admitted |
+| Existing unsigned core index `sha256:7410b54ac65caa9dc0ce7298fecf2d8b2dc58975c29f18c97c7ffb21630e18c9` in gitorgasm | Denied; failure reason contains `no valid bundles` |
+| Postgres in gitorgasm | Admitted; no publication-attestation requirement |
+| Unsigned core in default namespace | Admitted; outside webhook namespace scope |
+
+The independent wrong-identity cosign failure above is not relabeled as a live wrong-signer test. These results establish actual enforced unsigned rejection, not merely desired configuration or warning-mode behavior.
+
+
 Repeat these checks after enforcement sync and on verifier upgrades:
 
 1. Confirm both Applications Synced/Healthy, policy Ready, exact namespace selectors and failurePolicy Fail.
@@ -62,7 +76,7 @@ Repeat these checks after enforcement sync and on verifier upgrades:
      --image=ghcr.io/upayanmazumder/gitorgasm/core@sha256:7410b54ac65caa9dc0ce7298fecf2d8b2dc58975c29f18c97c7ffb21630e18c9
    ```
 
-The promotion PR configures enforce/Fail; its author does not claim post-merge rejection before the live check runs. Record the actual enforcement admission/rejection outputs in the changelog after sync.
+Post-merge signed admission and unsigned rejection are now verified as recorded above. Repeat the same controls after verifier/policy upgrades, retaining exact digests and admission outputs in the changelog.
 
 ## Alternatives rejected
 
@@ -77,6 +91,12 @@ The promotion PR configures enforce/Fail; its author does not claim post-merge r
 The cluster gains a namespace-scoped provenance check without changing tenant manifest ownership. Admission now depends on GHCR signature discovery and public Sigstore trust-root services. The controller has upstream cluster-scoped read permissions (including Secret/ServiceAccount reads for registry authentication); namespace scope limits webhook admission reach, not its RBAC. The controller creates its own serving-certificate Secret at runtime; no plaintext credentials are committed.
 
 Fail-closed operation makes gitorgasm admission depend on this replica and external verification services; it cannot block other namespaces or the controller's own recovery. Registry/authentication or TUF failures must be diagnosed, not bypassed with insecure flags. Review measured resources after rollout.
+
+The mutator normalizes **all** container images in the selected namespace before policy matching, including unmatched Postgres. On 2026-11-05 this caused own-induced ArgoCD drift: tenant desired `postgres:18.6-alpine`, live StatefulSet `index.docker.io/library/postgres:18.6-alpine@sha256:10a5c69a83035ab5239f5620d708520e8b28f5aa1f2b20143e6024532edadfb5`. The application was Healthy/OutOfSync and repeatedly reapplied Postgres (seven auto-heal attempts observed). The database remained Ready.
+
+Do not disable the mutator as a workaround: the validator requires digest references for every container before checking no-match allowance; it does not independently resolve tag-only references. The safe fix is to pin the tenant's desired Postgres image to the same fully qualified live tag/digest.
+
+**Resolved:** [tenant PR #76](https://github.com/upayanmazumder/gitorgasm/pull/76) merged as `5f2697041d7aa601c9ce06a17a9287ac6719eda8`. `Main` independently verified the registry digest, confirmed desired and live Postgres references match the canonical tag/digest above, and observed gitorgasm at that revision **Synced/Healthy** via kubectl wait. The pin preserves the already-running image digest and database data. Both controller Applications are also Synced/Healthy. No object-label bypass, ignored image drift, admission relaxation, or manual cluster mutation was needed.
 
 Rollback promotion by reverting its GitOps commit, restoring **both** warn and Ignore. To remove the installation, first revert policy enforcement, then remove the policies Application before the controller; do not leave fail-closed webhooks pointing at a deleted Service. Keep CRDs/policy ownership in mind before removing an Application; do not delete unrelated policies or namespaces.
 
