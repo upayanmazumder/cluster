@@ -25,9 +25,17 @@ SUBJECT = (
     "https://github.com/upayanmazumder/gitorgasm/"
     ".github/workflows/image-publish.yml@refs/heads/main"
 )
-SELECTOR = {"matchExpressions": [{
-    "key": "kubernetes.io/metadata.name", "operator": "In", "values": ["gitorgasm"]
-}]}
+SELECTOR = {"matchExpressions": [
+    {"key": "webhooks.knative.dev/exclude", "operator": "DoesNotExist"},
+    {"key": "kubernetes.io/metadata.name", "operator": "In", "values": ["gitorgasm"]},
+]}
+PREDICATE_TYPE = "https://gitorgasm.upayan.dev/attestations/image-publish/v1"
+PUBLICATION_POLICY = (
+    'predicate: {\n'
+    '  repository: "upayanmazumder/gitorgasm"\n'
+    '  ref: "refs/heads/main"\n'
+    '}\n'
+)
 
 
 def documents(path: Path) -> list[dict]:
@@ -76,6 +84,8 @@ def main() -> None:
         print(f"{kind}/policy.sigstore.dev: gitorgasm only, failurePolicy={expected_failure}")
     config = only(helm, "ConfigMap", "config-policy-controller")
     require(config["data"]["no-match-policy"] == "allow", "unmatched Postgres must remain allowed")
+    require(config["data"].get("enable-oci11") == "false",
+            "experimental OCI discovery must remain explicitly disabled; discovery is not verification")
     deployment = only(helm, "Deployment", "policy-controller-webhook")
     pod = deployment["spec"]["template"]["spec"]
     require(deployment["spec"]["replicas"] == 1, "expected single-node replica budget")
@@ -97,6 +107,11 @@ def main() -> None:
         "identities": [{"issuer": "https://token.actions.githubusercontent.com", "subject": SUBJECT}],
     }, "keyless issuer/subject or trust bypass changed")
     require(authority["ctlog"] == {"url": "https://rekor.sigstore.dev"}, "transparency log configuration changed")
+    require(authority.get("attestations") == [{
+        "name": "image-publication",
+        "predicateType": PREDICATE_TYPE,
+        "policy": {"type": "cue", "data": PUBLICATION_POLICY},
+    }], "require the supported bundle attestation path and exact publication predicate constraints")
     namespace = only(rendered, "Namespace", "policy-controller")
     require(namespace["metadata"]["labels"]["pod-security.kubernetes.io/enforce"] == "baseline",
             "controller namespace must use the namespace baseline")
@@ -127,9 +142,9 @@ def main() -> None:
         policy_path.write_text(yaml.safe_dump(policy))
         subprocess.run(["kubeconform", "-strict", "-summary", "-schema-location", str(schema_path),
                         str(policy_path)], check=True)
-    print(f"ClusterImagePolicy/gitorgasm-core-signed: mode={spec['mode']}, exact issuer/subject, bundle format")
+    print(f"ClusterImagePolicy/gitorgasm-core-signed: mode={spec['mode']}, exact issuer/subject, signed publication attestation")
     print(f"Controller: {CONTROLLER}")
-    print("check-image-policy.py: OK — shipped CRD schema + rendered scope, identity, mode, budget and project permissions")
+    print("check-image-policy.py: OK — shipped CRD + scope, identity, attestation/CUE, experimental-discovery guard, mode and budget")
 
 
 if __name__ == "__main__":

@@ -33,7 +33,7 @@ the reasoning that was once good enough stays visible.
 | [0007](0007-keda-scale-to-zero.md) | Scale-to-zero with KEDA and the HTTP add-on | Accepted |
 | [0008](0008-traefik-k3s-bundled.md) | Keep k3s's bundled Traefik, configured via one `HelmChartConfig` | Accepted |
 | [0009](0009-vcap-postgres-public-ports.md) | The VCAP Postgres instances stay publicly reachable, on moved non-default ports | Accepted, partially implemented |
-| [0010](0010-gitorgasm-image-signatures.md) | Verify gitorgasm image signatures with a namespace-scoped Sigstore controller | Proposed (warning-only rollout) |
+| [0010](0010-gitorgasm-image-signatures.md) | Verify gitorgasm publication attestations with a namespace-scoped Sigstore controller | Accepted, partially implemented (corrective warn-only rollout) |
 
 ## Adding one
 

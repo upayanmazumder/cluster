@@ -12,8 +12,8 @@ installCRDs: true
 
 webhook:
   replicaCount: 1
-  # Chart default v0.13.1 predates OCI 1.1 discovery and cosign v3. Pin v0.15.1
-  # for bundles published by cosign 3.1.4; digest resolved from GHCR's v0.15.1 index.
+  # v0.15.1 provides the cosign v3 cryptographic attestation-bundle verifier.
+  # Image-signature bundles are unsupported; the policy requires an attestation.
   image:
     version: sha256:0492bb264fb1d9bdc8e3f343ef542cc85b7dd7c7fd8d9524b453c2bd31a1d128
 
@@ -34,6 +34,8 @@ webhook:
   # To add a namespace later, append to `values` and review it as a new trust decision.
   namespaceSelector:
     matchExpressions:
+      - key: webhooks.knative.dev/exclude
+        operator: DoesNotExist
       - key: kubernetes.io/metadata.name
         operator: In
         values: ["gitorgasm"]
@@ -56,6 +58,9 @@ webhook:
   # limits the webhook to one namespace.
   configData:
     no-match-policy: allow
+    # Keep the experimental controller DSSE-discovery shortcut disabled. The normal
+    # cosign bundle verifier discovers referrers and checks signatures/identity/digest.
+    enable-oci11: "false"
 
   # Single node, single replica. The chart default PodDisruptionBudget (minAvailable: 1) would make
   # the only replica un-evictable and block `kubectl drain` during k3s upgrades.

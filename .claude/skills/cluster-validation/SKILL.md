@@ -34,7 +34,8 @@ bash scripts/helm-template-all.sh /tmp/helm-manifests.yaml
 
 The Helm renderer uses each Application's destination namespace (including webhook Service and
 CRD conversion references). Validate Sigstore's custom policy against its shipped CRD and the
-rendered namespace scope, exact identity, and warn/Ignore or enforce/Fail pairing:
+rendered namespace scope, exact identity, attestation predicate/CUE constraints, disabled
+experimental discovery shortcut, and warn/Ignore or enforce/Fail pairing:
 
 ```bash
 python3 scripts/check-image-policy.py /tmp/helm-manifests.yaml /tmp/all-manifests.yaml

@@ -86,7 +86,7 @@ generator; "Explicit" rows are `k8s/argocd/applications/apps/<app>.yaml`.
 | `keda` | `keda` | No ScaledObjects remain for vcap |
 | `monitoring` | `monitoring` | Prometheus + Grafana + Loki + Promtail |
 | `traefik-config` | `traefik` | patches k3s's built-in `kube-system/traefik` via `HelmChartConfig`. No Postgres TCP entrypoint exists. The v2 entrypoints were removed on 2026-10-23. The `vcap-pg-v1` entrypoint (TCP 15434) was removed on 2026-10-27. |
-| `policy-controller` / `policy-controller-policies` (proposed) | `policy-controller` / cluster-scoped policy | Chart 0.10.8, controller v0.15.1 digest pin; webhook selects gitorgasm only, initially warn/Ignore. See `docs/adr/0010-gitorgasm-image-signatures.md` for promotion gates. |
+| `policy-controller` / `policy-controller-policies` | `policy-controller` / cluster-scoped policy | Chart 0.10.8, controller v0.15.1 digest pin; gitorgasm only. First image-signature smoke failed; corrective publication-attestation policy remains warn/Ignore with experimental discovery disabled. See `docs/adr/0010-gitorgasm-image-signatures.md`. |
 
 ### VCAP (retired)
 

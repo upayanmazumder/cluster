@@ -1,24 +1,30 @@
-# 0010 — Verify gitorgasm image signatures with a namespace-scoped Sigstore controller
+# 0010 — Verify gitorgasm publication attestations with a namespace-scoped Sigstore controller
 
-**Status:** Proposed (warning-only GitOps rollout; enforcement requires the gates below)
+**Status:** Accepted, partially implemented (installed; corrective attestation policy remains warning-only)
 **Date:** 2026-11-05
 
 ## Context
 
-The gitorgasm reusable `image-publish.yml` workflow signs the pushed GHCR manifest-list digest using GitHub Actions OIDC and cosign 3.1.4. Publishing a signature alone does not verify an image when Kubernetes admits it. This cluster does not yet have an image-signature admission controller. The tenant owns its Namespace and workload manifests in the gitorgasm repository; this repository owns platform security controls. Other applications and gitorgasm's Postgres image must remain unaffected.
+PR #84 installed Sigstore policy-controller in warning mode. The first live smoke found that v0.15.1 cannot verify cosign v3 image-signature bundles: signed and unsigned images both warned. The gitorgasm repository owns its Namespace/workloads and publishes signed artifacts; this repository owns platform admission controls. Other namespaces and gitorgasm's Postgres image must remain unaffected.
 
 ## Decision
 
-Install Sigstore `policy-controller` through the platform ArgoCD project, using pinned Helm chart **0.10.8** from `https://sigstore.github.io/helm-charts`. Override its default controller v0.13.1 with **v0.15.1**, pinned to the GHCR image-index digest `sha256:0492bb264fb1d9bdc8e3f343ef542cc85b7dd7c7fd8d9524b453c2bd31a1d128`. Version 0.14 adds OCI 1.1 discovery, 0.15 adopts cosign v3, and 0.15.1 updates TUF trusted-root retrieval. The older chart default is therefore not the verifier for new cosign v3 bundles. Keep the chart's CRDs; our policy uses fields served by its v1beta1 schema. The cleanup image is separately digest-pinned rather than inheriting `latest-dev`.
+Keep chart **0.10.8** and controller **v0.15.1**, pinned at `sha256:0492bb264fb1d9bdc8e3f343ef542cc85b7dd7c7fd8d9524b453c2bd31a1d128`. The controller supports cryptographic **attestation** bundle verification, not bundle image-signature verification. Its v1beta1 CRD supports the required attestation/CUE fields. The cleanup image remains digest-pinned.
 
 Both workload webhooks select **only** namespaces whose API-server-managed `kubernetes.io/metadata.name` is `gitorgasm`. This avoids a tenant-controlled opt-in label and excludes `policy-controller`, `kube-system`, `argocd`, monitoring, and every other tenant. The `ClusterImagePolicy` matches only the exact repository `ghcr.io/upayanmazumder/gitorgasm/core` (tag or digest references, not repositories beginning with `core`). Images without a matching policy are allowed, so Postgres is not accidentally denied by the upstream default.
 
-Require a cryptographically verified Sigstore **bundle**, public-good Sigstore trust material from TUF, and the exact certificate identity:
+Require a cryptographically verified Sigstore **attestation bundle**, public-good Sigstore trust material from TUF, and the exact certificate identity:
 
 - OIDC issuer: `https://token.actions.githubusercontent.com`
 - SAN subject: `https://github.com/upayanmazumder/gitorgasm/.github/workflows/image-publish.yml@refs/heads/main`
 
-The expected SAN is the reusable signing workflow (`job_workflow_ref`), not caller `ci.yml`, the environment name, or an arbitrary workflow in the repository. Do not broaden this to a repository-wide regular expression if verification fails. Inspect the real certificate and correct the exact identity instead. This is image-signature provenance, **not** a claim of SLSA predicate or SBOM verification.
+The SAN is the reusable signing workflow (`job_workflow_ref`), not caller `ci.yml`, an environment name, or arbitrary repository workflow. Do not broaden it to a regular expression.
+
+Require predicate type `https://gitorgasm.upayan.dev/attestations/image-publish/v1` with CUE checking `predicate.repository: "upayanmazumder/gitorgasm"` and `predicate.ref: "refs/heads/main"`. The workflow adds this signed publication attestation without removing its existing image signature. Its JSON records repository, commit, ref and digest: a publication event, **not** SLSA build provenance or an SBOM.
+
+Explicitly set `enable-oci11: "false"`. The controller's experimental discovery shortcut parses DSSE without invoking cosign verification. Normal attestation-bundle verification already discovers referrers and verifies the DSSE signature, exact SAN/issuer, subject digest and certificate/transparency trust. CI forbids enabling the shortcut or removing attestation/CUE constraints.
+
+Both selectors also explicitly include `webhooks.knative.dev/exclude DoesNotExist`, matching the controller-injected selector observed live. Keep `metadata.name In [gitorgasm]` alongside it; do not ignore selector drift.
 
 Begin with `spec.mode: warn` and workload `failurePolicy: Ignore`. Failed signatures warn rather than prevent restarts, and controller outages cannot block gitorgasm during observation. The policy-object admission webhooks remain upstream fail-closed; they only handle policy/trust-root writes, not application workloads. No warning-only rollout is represented as enforcement.
 
@@ -26,27 +32,28 @@ Use one controller replica on node `vps`, requests 50m CPU/128Mi, limits 250m/38
 
 ## Promotion gates and live validation
 
-Merge/deploy the warning-only change before testing admission. All persistent changes, including promotion and rollback, go through reviewed GitOps PRs; do not install the chart or patch policies with kubectl.
+The installation is merged; its failed initial smoke stopped promotion. The corrective policy stays warn/Ignore. All persistent changes go through reviewed GitOps PRs.
 
-1. Confirm both Applications are Synced/Healthy, `policy-controller-webhook` is Available, and `gitorgasm-core-signed` is Ready. Confirm the live workload webhook selectors contain only `gitorgasm`, their services point to namespace `policy-controller`, and the policy-controller namespace is excluded.
-2. Verify the exact manifest-list digest published after signing was introduced, then confirm api and worker use that digest in their **spec**. A container runtime imageID can be a platform-specific child digest and is not a substitute for the signed index digest.
+1. Confirm both Applications are Synced/Healthy, controller Available and policy Ready. Confirm both exact namespace selectors and the `policy-controller` Service namespace.
+2. Set `ATTESTED_IMAGE` to the exact index output from the updated publish workflow. Independently verify its publication attestation, and confirm api/worker workload specs use that index, not a tag or runtime platform-specific child imageID.
 
    ```bash
-   cosign verify \
+   cosign verify-attestation \
+     --type https://gitorgasm.upayan.dev/attestations/image-publish/v1 \
      --certificate-identity 'https://github.com/upayanmazumder/gitorgasm/.github/workflows/image-publish.yml@refs/heads/main' \
      --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-     ghcr.io/upayanmazumder/gitorgasm/core@sha256:49cc0ad5c56dc7efbcabbe6982a7bf30fe3ca030e39929039ffa0ff0afb22232
+     "$ATTESTED_IMAGE"
    kubectl -n gitorgasm get deployments -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.spec.template.spec.containers[*].image}{"\n"}{end}'
    ```
 
-   The digest above is the output of signing run `42061786149`; a successful signing job alone is not an independent verification result.
-3. Use read-only server-side dry-run admission (`kubectl run ... --dry-run=server -o yaml`) for that signed index and a separately verified unsigned, existing digest of the same repository. In `gitorgasm`, the positive case must validate without a failed-policy warning; the negative case must be admitted **with** a failed-policy warning. Check controller logs for the corresponding policy result so a fail-open webhook outage cannot masquerade as success. Run the unsigned case in an unselected test namespace and a Postgres case in gitorgasm: neither must produce this policy's warning. These commands must use existing namespaces and must not create live pods.
+   Earlier image-signature verification alone does not satisfy this attestation gate.
+3. In gitorgasm, the attested positive must have no failed-policy warning; unsigned and wrong-identity controls must warn. Inspect corresponding controller validation results to rule out fail-open bypass. Postgres and the unsigned control in an unselected existing namespace must have no warning from this policy. Use server-side dry-run only, without creating live pods.
 
    Concrete controls (server-side dry-run only; run after the controller is healthy):
 
    ```bash
    kubectl -n gitorgasm run signature-positive --restart=Never --dry-run=server -o yaml \
-     --image=ghcr.io/upayanmazumder/gitorgasm/core@sha256:49cc0ad5c56dc7efbcabbe6982a7bf30fe3ca030e39929039ffa0ff0afb22232
+     --image="$ATTESTED_IMAGE"
    kubectl -n gitorgasm run signature-negative --restart=Never --dry-run=server -o yaml \
      --image=ghcr.io/upayanmazumder/gitorgasm/core@sha256:7410b54ac65caa9dc0ce7298fecf2d8b2dc58975c29f18c97c7ffb21630e18c9
    ```
@@ -73,6 +80,8 @@ Rollback promotion by reverting its GitOps commit, restoring **both** warn and I
 
 - **2026-11-05 independent signature verification:** coordinating agent `Main` reports successful `cosign verify` using container `ghcr.io/sigstore/cosign/cosign:v3.1.4` for index `sha256:49cc0ad5c56dc7efbcabbe6982a7bf30fe3ca030e39929039ffa0ff0afb22232`, with exactly the issuer and reusable-workflow SAN specified above. Claims validation, offline transparency-log inclusion and code-signing certificate checks passed. This confirms the configured signer identity; it does not establish that the not-yet-deployed admission controller accepts the bundle. Controller health and positive/negative admission remain separate promotion gates.
 - **2026-11-05 unsigned negative control:** `Main` confirmed existing core index `sha256:7410b54ac65caa9dc0ce7298fecf2d8b2dc58975c29f18c97c7ffb21630e18c9` from publish run `42058299719`. Exact-identity/issuer cosign verification failed with **no signatures found**, exit **10**. Use that existing image for negative server-dry-run admission, not a nonexistent digest whose registry lookup failure could obscure policy behavior.
+- **2026-11-05 first smoke failed:** `Main` reports healthy/Ready controller, but signed and unsigned controls both warned `bundle support for image signatures is not yet implemented`. This invalidated the original assumption and halted enforcement. The correction requires a publication attestation; corrected live admission is not yet proven.
+- Source: [controller attestation dispatch/experimental shortcut](https://github.com/sigstore/policy-controller/blob/v0.15.1/pkg/webhook/validation.go), [authority predicate evaluation](https://github.com/sigstore/policy-controller/blob/v0.15.1/pkg/webhook/validator.go), [normal cosign bundle verifier](https://github.com/sigstore/cosign/blob/v3.0.5/pkg/cosign/verify.go). The normal path calls `VerifyNewBundle` with artifact-digest policy and the in-toto subject verifier.
 - [`policy-controller` Application](../../k8s/argocd/applications/platform/policy-controller.yaml), [values](../../k8s/platform/policy-controller/values.yaml), and [policy Application](../../k8s/argocd/applications/platform/policy-controller-policies.yaml).
 - [Signature policy](../../k8s/platform/policy-controller-policies/gitorgasm-core.yaml) and [platform permissions](../../k8s/argocd/projects/platform.yaml).
 - [`check-image-policy.py`](../../scripts/check-image-policy.py) validates the rendered scope, exact identity, rollout pairing, node/image pins, and policy against the **rendered chart CRD**, without `ignore-missing-schemas` for that custom resource. The regular render/schema job also covers the installed chart. Offline checks do not prove live admission.

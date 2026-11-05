@@ -148,13 +148,14 @@ re-applied by hand, and `AppProject/default` can be locked down only after that.
 **Network policies** are covered in [`networking.md`](networking.md#networkpolicy-posture-s11--implemented-2026-09-28).
 **Upgrade/pinning policy** is in [`upgrade-policy.md`](upgrade-policy.md).
 
-### Gitorgasm signature admission (proposed 2026-11-05)
+### Gitorgasm publication-attestation admission (2026-11-05)
 
-The GitOps manifests add Sigstore policy-controller for **gitorgasm only**, initially in
-warning mode with fail-open workload webhooks. Exact issuer/workflow identity verification,
-signed-digest admission and negative dry-runs gate a separate enforce/fail-closed PR.
-Postgres and all other namespaces are outside the signature policy. This is not yet a claim
-of live enforcement; see [ADR 0010](adr/0010-gitorgasm-image-signatures.md).
+Sigstore policy-controller is installed for **gitorgasm only**. The first warn-mode smoke
+exposed unsupported bundle image-signature verification. The corrective policy requires a
+signed custom publication attestation and exact repository/ref CUE constraints, using the
+normal cryptographic verifier with experimental discovery explicitly disabled. It remains
+warn/Ignore until positive, unsigned and wrong-identity live controls pass; see
+[ADR 0010](adr/0010-gitorgasm-image-signatures.md). Postgres and other namespaces are unaffected.
 
 ## Ownership model (target)
 
