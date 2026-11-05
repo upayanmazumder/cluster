@@ -41,6 +41,16 @@ Merge/deploy the warning-only change before testing admission. All persistent ch
 
    The digest above is the output of signing run `42061786149`; a successful signing job alone is not an independent verification result.
 3. Use read-only server-side dry-run admission (`kubectl run ... --dry-run=server -o yaml`) for that signed index and a separately verified unsigned, existing digest of the same repository. In `gitorgasm`, the positive case must validate without a failed-policy warning; the negative case must be admitted **with** a failed-policy warning. Check controller logs for the corresponding policy result so a fail-open webhook outage cannot masquerade as success. Run the unsigned case in an unselected test namespace and a Postgres case in gitorgasm: neither must produce this policy's warning. These commands must use existing namespaces and must not create live pods.
+
+   Concrete controls (server-side dry-run only; run after the controller is healthy):
+
+   ```bash
+   kubectl -n gitorgasm run signature-positive --restart=Never --dry-run=server -o yaml \
+     --image=ghcr.io/upayanmazumder/gitorgasm/core@sha256:49cc0ad5c56dc7efbcabbe6982a7bf30fe3ca030e39929039ffa0ff0afb22232
+   kubectl -n gitorgasm run signature-negative --restart=Never --dry-run=server -o yaml \
+     --image=ghcr.io/upayanmazumder/gitorgasm/core@sha256:7410b54ac65caa9dc0ce7298fecf2d8b2dc58975c29f18c97c7ffb21630e18c9
+   ```
+
 4. Open a second PR changing `mode: warn` to `enforce` and workload `failurePolicy: Ignore` to `Fail` together, only after the preceding evidence is recorded. After it deploys, repeat server-side dry-runs: signed index admitted; unsigned same-repository digest rejected; Postgres and unselected namespaces unaffected. Record exact warnings/rejections and the tested digests in the changelog. Never infer denial from a successful render or from cosign verification alone.
 
 ## Alternatives rejected
@@ -62,6 +72,7 @@ Rollback promotion by reverting its GitOps commit, restoring **both** warn and I
 ## Evidence and upstream references
 
 - **2026-11-05 independent signature verification:** coordinating agent `Main` reports successful `cosign verify` using container `ghcr.io/sigstore/cosign/cosign:v3.1.4` for index `sha256:49cc0ad5c56dc7efbcabbe6982a7bf30fe3ca030e39929039ffa0ff0afb22232`, with exactly the issuer and reusable-workflow SAN specified above. Claims validation, offline transparency-log inclusion and code-signing certificate checks passed. This confirms the configured signer identity; it does not establish that the not-yet-deployed admission controller accepts the bundle. Controller health and positive/negative admission remain separate promotion gates.
+- **2026-11-05 unsigned negative control:** `Main` confirmed existing core index `sha256:7410b54ac65caa9dc0ce7298fecf2d8b2dc58975c29f18c97c7ffb21630e18c9` from publish run `42058299719`. Exact-identity/issuer cosign verification failed with **no signatures found**, exit **10**. Use that existing image for negative server-dry-run admission, not a nonexistent digest whose registry lookup failure could obscure policy behavior.
 - [`policy-controller` Application](../../k8s/argocd/applications/platform/policy-controller.yaml), [values](../../k8s/platform/policy-controller/values.yaml), and [policy Application](../../k8s/argocd/applications/platform/policy-controller-policies.yaml).
 - [Signature policy](../../k8s/platform/policy-controller-policies/gitorgasm-core.yaml) and [platform permissions](../../k8s/argocd/projects/platform.yaml).
 - [`check-image-policy.py`](../../scripts/check-image-policy.py) validates the rendered scope, exact identity, rollout pairing, node/image pins, and policy against the **rendered chart CRD**, without `ignore-missing-schemas` for that custom resource. The regular render/schema job also covers the installed chart. Offline checks do not prove live admission.
