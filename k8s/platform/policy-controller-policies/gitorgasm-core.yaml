@@ -1,34 +1,10 @@
-# ClusterImagePolicy: images under ghcr.io/upayanmazumder/gitorgasm/core must carry a keyless
-# Sigstore signature made by the gitorgasm image-publish workflow on `main`. See ADR 0010.
+# Verify a signed image-publication attestation for the exact gitorgasm core repository.
+# Controller v0.15.1 does not implement bundle image-signature verification; an attestation
+# selects its supported cryptographic bundle path. See ADR 0010 and the failed first smoke.
 #
-# Reach: this object only says WHAT a valid signature is. WHICH pods are checked is decided by the
-# webhook's namespaceSelector in ../policy-controller/values.yaml (the `gitorgasm` namespace only).
-#
-# API: policy.sigstore.dev/v1beta1 (served alongside v1alpha1, which is the storage version).
-# Fields checked against the CRD that chart 0.10.8 ships.
-#
-# ---- mode: warn ------------------------------------------------------------------------------
-# An image that fails this policy is ADMITTED, and the failure is reported as an admission warning
-# and in the webhook log. Remain in warn until the signed digest, actual certificate identity,
-# controller health, and positive/negative server-side dry-run admission have been verified.
-#
-# FOLLOW-UP, a second PR, only after ALL of these hold:
-#   1. A digest built by `.github/workflows/image-publish.yml` on `main` after signing was added is
-#      the one running in the cluster (`kubectl -n gitorgasm get pods -o jsonpath=...` shows it).
-#   2. `cosign verify` of that exact digest succeeds from a workstation with the identity below:
-#        cosign verify \
-#          --certificate-identity 'https://github.com/upayanmazumder/gitorgasm/.github/workflows/image-publish.yml@refs/heads/main' \
-#          --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-#          ghcr.io/upayanmazumder/gitorgasm/core@sha256:<running digest>
-#   3. Positive and unsigned-image server-side dry-runs in gitorgasm demonstrate policy evaluation;
-#      the unsigned image warns in this phase. Other namespaces and Postgres remain unaffected.
-# The PR then changes exactly two things:
-#   - this file: `mode: warn` -> `mode: enforce`
-#   - ../policy-controller/values.yaml: `webhook.failurePolicy: Ignore` -> `Fail`
-# Rollback of that PR is `git revert`; to stop enforcement faster, set `mode: warn` again.
-#
-# The reusable publish workflow uses cosign v3's Sigstore bundle format and OCI 1.1 referrers.
-# Controller v0.15.1 is pinned explicitly: the chart default predates that discovery path.
+# Stay warn/Ignore until live signed/unsigned/wrong-identity admission smoke succeeds.
+# Promotion must pair mode: enforce with webhook.failurePolicy: Fail in values.yaml.
+# Rollback restores both warn and Ignore. Admission scope remains gitorgasm namespace only.
 apiVersion: policy.sigstore.dev/v1beta1
 kind: ClusterImagePolicy
 metadata:
@@ -57,3 +33,13 @@ spec:
             subject: https://github.com/upayanmazumder/gitorgasm/.github/workflows/image-publish.yml@refs/heads/main
       ctlog:
         url: https://rekor.sigstore.dev
+      attestations:
+        - name: image-publication
+          predicateType: https://gitorgasm.upayan.dev/attestations/image-publish/v1
+          policy:
+            type: cue
+            data: |
+              predicate: {
+                repository: "upayanmazumder/gitorgasm"
+                ref: "refs/heads/main"
+              }
