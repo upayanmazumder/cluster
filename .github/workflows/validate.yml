@@ -69,6 +69,9 @@ jobs:
           bash scripts/helm-template-all.sh /tmp/helm-manifests.yaml
           echo "rendered $(grep -c '^kind:' /tmp/helm-manifests.yaml) manifests from the Helm-sourced apps"
 
+      - name: Sigstore rendered scope, identity, rollout mode and shipped CRD schema
+        run: python3 scripts/check-image-policy.py /tmp/helm-manifests.yaml /tmp/all-manifests.yaml
+
       - name: SOPS-encrypted secrets have valid sops+age metadata
         run: bash scripts/check-secrets.sh
 

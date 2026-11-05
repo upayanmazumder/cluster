@@ -25,6 +25,7 @@ removed 2026-09-28, so it is no longer among them):
 | `argocd-image-updater` | `argocd-image-updater` | `0.14.0` |
 | `keda` | `keda` | `2.21.0` |
 | `keda-add-ons-http` | `keda-add-ons-http` | `0.16.0` |
+| `policy-controller` (proposed) | `policy-controller` | `0.10.8`; controller v0.15.1 separately digest-pinned for cosign v3/OCI 1.1 bundles; [ADR 0010](adr/0010-gitorgasm-image-signatures.md) |
 
 **Images — done, Blocker 1 resolved.**
 

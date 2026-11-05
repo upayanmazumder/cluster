@@ -50,7 +50,7 @@ under [`runbooks/`](runbooks/). Confirm with the owner before a destructive acti
 | Doc | Covers |
 |---|---|
 | [`architecture.md`](architecture.md) | Current architecture, ownership model, and remaining target work |
-| [`adr/`](adr/README.md) | Architecture Decision Records: status, context, rejected alternatives, and consequences (nine records) |
+| [`adr/`](adr/README.md) | Architecture Decision Records: status, context, rejected alternatives, and consequences (ten records) |
 | [`inventory.md`](inventory.md) | Machine sheet: server, IP, volume IDs, k3s version, contacts |
 | [`storage.md`](storage.md) | Live dataset inventory, paths, sizes, reclaim policies, backup coverage |
 | [`backups.md`](backups.md) | Backup timers, 14 targets, restic repository, offsite copy, drill |

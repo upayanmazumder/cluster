@@ -13,9 +13,9 @@ plans are working documents and will be superseded; these should not need to be.
 
 Every record has: **Status**, **Date**, **Context**, **Decision**, alternatives rejected with the
 reason, **Consequences**, and **Evidence** (the files that prove the decision is real rather than
-aspirational). Status is one of *Accepted*, *Superseded*, or *Accepted, partially implemented* — the
-last is used when the decision stands but the cluster does not yet match it, and the gap is named
-explicitly rather than left to be discovered.
+aspirational). Status is one of *Proposed*, *Accepted*, *Superseded*, or *Accepted, partially implemented*.
+Use *Proposed* for an unmerged GitOps rollout; name any runtime verification or enforcement gates
+explicitly rather than leaving them to be discovered.
 
 Records are append-only in spirit: a changed decision gets a new record that supersedes the old one, so
 the reasoning that was once good enough stays visible.
@@ -33,6 +33,7 @@ the reasoning that was once good enough stays visible.
 | [0007](0007-keda-scale-to-zero.md) | Scale-to-zero with KEDA and the HTTP add-on | Accepted |
 | [0008](0008-traefik-k3s-bundled.md) | Keep k3s's bundled Traefik, configured via one `HelmChartConfig` | Accepted |
 | [0009](0009-vcap-postgres-public-ports.md) | The VCAP Postgres instances stay publicly reachable, on moved non-default ports | Accepted, partially implemented |
+| [0010](0010-gitorgasm-image-signatures.md) | Verify gitorgasm image signatures with a namespace-scoped Sigstore controller | Proposed (warning-only rollout) |
 
 ## Adding one
 

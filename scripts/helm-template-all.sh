@@ -34,7 +34,7 @@ skipped=0
 
 while IFS= read -r -d '' manifest; do
   # One line per (source, chart) so the shell loop stays simple; the Python below does the parsing.
-  while IFS=$'\t' read -r app chart repo rev path valuefiles shape; do
+  while IFS=$'\t' read -r app chart repo rev path valuefiles shape namespace; do
     [ -n "$chart" ] || continue
     rel=${manifest#"$repo_root"/}
     total=$((total + 1))
@@ -79,6 +79,11 @@ while IFS= read -r -d '' manifest; do
       fi
       args=(template "$app" "$chart_file")
     fi
+    # Helm templates use .Release.Namespace for webhook services and CRD conversion.
+    # Match ArgoCD's destination rather than silently rendering these into `default`.
+    if [ "$namespace" != "-" ]; then
+      args+=(--namespace "$namespace")
+    fi
 
     # valueFiles come through as a comma-separated list of repo-relative paths (already stripped of
     # their `$values/` ref prefix by the parser), so they are read from THIS repo.
@@ -111,6 +116,7 @@ for doc in docs:
         continue
     app = (doc.get("metadata") or {}).get("name", "?")
     spec = doc.get("spec") or {}
+    namespace = (spec.get("destination") or {}).get("namespace") or "-"
     sources = ([spec["source"]] if isinstance(spec.get("source"), dict) else []) + list(spec.get("sources") or [])
 
     # A `$values/...` valueFile refers to the source labelled `values`; resolve that label to its
@@ -143,7 +149,7 @@ for doc in docs:
             if refs.get(ref, "").endswith("upayanmazumder/cluster"):
                 vfs.append(tail)
         shape = "helmrepo" if src.get("chart") else "git"
-        print("\t".join([app, chart, repo, rev, path, ",".join(vfs) or "-", shape]))
+        print("\t".join([app, chart, repo, rev, path, ",".join(vfs) or "-", shape, namespace]))
 PY
 )
 done < <(find "$repo_root/k8s/argocd/applications" -name '*.yaml' -print0 | sort -z)

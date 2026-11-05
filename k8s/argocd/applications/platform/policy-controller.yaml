@@ -1,0 +1,70 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+  name: policy-controller
+  namespace: argocd
+spec:
+  project: platform
+  sources:
+    - repoURL: https://sigstore.github.io/helm-charts
+      chart: policy-controller
+      targetRevision: "0.10.8" # Controller image separately pinned to v0.15.1 in values; ADR 0010.
+      helm:
+        valueFiles:
+          - $values/k8s/platform/policy-controller/values.yaml
+    - repoURL: https://github.com/upayanmazumder/cluster
+      targetRevision: main
+      ref: values
+    # The namespace and its Pod Security labels, from the shared baseline component. A separate
+    # source because the `values` ref above is consumed as a file reference and renders no objects.
+    - repoURL: https://github.com/upayanmazumder/cluster
+      targetRevision: main
+      path: k8s/platform/policy-controller
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: policy-controller
+  # The webhook controller writes into objects the chart renders without those fields: the CA
+  # bundle and `rules` on the webhook configurations, the CA bundle on the CRD's conversion
+  # webhook, and the serving cert in `webhook-certs`. The two ConfigMaps hold generated data.
+  # Only those fields are ignored. `failurePolicy` and `namespaceSelector` on the webhook
+  # configurations stay compared, because they are the scope of this control.
+  ignoreDifferences:
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+      jqPathExpressions:
+        - .webhooks[]?.clientConfig.caBundle
+        - .webhooks[]?.rules
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      jqPathExpressions:
+        - .webhooks[]?.clientConfig.caBundle
+        - .webhooks[]?.rules
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+      name: clusterimagepolicies.policy.sigstore.dev
+      jqPathExpressions:
+        - .spec.conversion.webhook.clientConfig.caBundle
+    - group: ""
+      kind: Secret
+      name: webhook-certs
+      jsonPointers:
+        - /data
+    - group: ""
+      kind: ConfigMap
+      name: config-image-policies
+      jsonPointers:
+        - /data
+    - group: ""
+      kind: ConfigMap
+      name: config-sigstore-keys
+      jsonPointers:
+        - /data
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true

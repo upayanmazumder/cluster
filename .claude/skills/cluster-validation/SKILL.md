@@ -32,6 +32,16 @@ bash scripts/render-all.sh /tmp/all-manifests.yaml
 bash scripts/helm-template-all.sh /tmp/helm-manifests.yaml
 ```
 
+The Helm renderer uses each Application's destination namespace (including webhook Service and
+CRD conversion references). Validate Sigstore's custom policy against its shipped CRD and the
+rendered namespace scope, exact identity, and warn/Ignore or enforce/Fail pairing:
+
+```bash
+python3 scripts/check-image-policy.py /tmp/helm-manifests.yaml /tmp/all-manifests.yaml
+```
+
+This is offline schema/configuration validation, not live signature or admission verification.
+
 ## Infrastructure validation
 
 ### Terraform
