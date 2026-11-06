@@ -1,0 +1,32 @@
+# Two independently published private images require an explicit Application.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: batch-autopsy
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+    argocd-image-updater.argoproj.io/image-list: "api=ghcr.io/upayanmazumder/batch-autopsy-api:main,web=ghcr.io/upayanmazumder/batch-autopsy-web:main"
+    argocd-image-updater.argoproj.io/api.update-strategy: digest
+    argocd-image-updater.argoproj.io/api.kustomize.image-name: ghcr.io/upayanmazumder/batch-autopsy-api
+    argocd-image-updater.argoproj.io/web.update-strategy: digest
+    argocd-image-updater.argoproj.io/web.kustomize.image-name: ghcr.io/upayanmazumder/batch-autopsy-web
+    argocd-image-updater.argoproj.io/write-back-method: "git:secret:argocd/git-creds-updater"
+    argocd-image-updater.argoproj.io/git-branch: main
+    argocd-image-updater.argoproj.io/git-repository: git@github.com:upayanmazumder/cluster.git
+spec:
+  project: apps
+  source:
+    repoURL: https://github.com/upayanmazumder/cluster
+    targetRevision: main
+    path: k8s/apps/batch-autopsy
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: batch-autopsy
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

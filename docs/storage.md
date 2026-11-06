@@ -78,6 +78,26 @@ Measured 2026-10-23:
   PVs use `Retain` and pin to node `vps`.
 - The monitoring PVs use the `hostpath-retain` class and point under `/var/lib/k8s-monitoring`.
 
+### Batch Autopsy dataset (declared, activation pending)
+
+`k8s/apps/batch-autopsy/postgres.yaml` declares a dedicated static `Retain` PV
+`batch-autopsy-postgres-vps` and PVC `batch-autopsy/postgres-data`, explicitly bound with
+`storageClassName: ""` and `volumeName`. It uses `/srv/data/batch-autopsy-postgres` on `vps-data`;
+it does not allocate a new cloud volume or reuse any retained dataset. The 2 Gi capacity is binding
+metadata, **not** a hostPath filesystem quota or an additional reservation on the shared 20 GB disk.
+PV and PVC both carry `Delete=false,Prune=false`.
+
+Before GitOps activation, provision the new directory through the Ansible `data_volume` role with
+owner/group `70:70`, mode `0700`, and verify that `/srv/data` is mounted and has free space.
+`hostPath.type: Directory` intentionally refuses to create an unprovisioned path on the root disk.
+PostgreSQL 18 stores its data in the mounted tree's `18/docker/` subdirectory; it runs as UID 70,
+with no root init container. `fsGroup` does not fix hostPath ownership.
+
+No backup target has been added for this new application. Persistent storage is not a backup.
+Do not store irreplaceable investigation data until a separately reviewed logical-backup target and
+restore check exist. Never use a raw-file backup of a running PostgreSQL database as a consistent dump.
+
+
 ## Backup coverage
 
 Class A runs every 30 minutes. Class C runs daily. See [`backups.md`](backups.md) for the exact

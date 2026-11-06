@@ -49,6 +49,61 @@ facts were checked on 2026-10-23 with `ssh` and `kubectl` read commands.
 | Out of scope | `codechefvit.com` zone (someone else's) |
 | Target-managed by | Terraform, only if the import plan is zero-diff (S2) |
 
+## Batch Autopsy private application (prepared, not yet activated)
+
+- **GitOps registration:** explicit Application
+  `k8s/argocd/applications/apps/batch-autopsy.yaml`, project `apps`, namespace `batch-autopsy`.
+  This is a two-image workload, not an ApplicationSet member.
+- **Workloads:** API on `api:8000`, web on `web:8080`, PostgreSQL 18.6 on `postgres:5432`.
+  All Services are ClusterIP, with a headless database Service; no Ingress, NodePort, LoadBalancer,
+  public DNS, public TLS route, or new authentication feature is introduced.
+- **Access:** an authorized cluster operator can run
+  `kubectl -n batch-autopsy port-forward --address 127.0.0.1 svc/web 8080:8080`
+  and open `http://127.0.0.1:8080`. The web server proxies `/api` internally.
+  The application has no authentication and must not be exposed publicly without separate approval.
+- **Network boundary:** default-deny ingress and egress; only web-to-API TCP/8000,
+  API-to-Postgres TCP/5432, and API/web DNS to labelled CoreDNS pods are permitted.
+  The API additionally permits public IPv4 TCP/443 for Groq. Standard Kubernetes NetworkPolicy
+  cannot express a Groq FQDN allowlist: this rule excludes private, loopback, link-local, tailnet,
+  multicast/reserved and node ranges, but it is **not** a Groq-only hostname restriction.
+  An FQDN-aware egress proxy/CNI would be a separate infrastructure change.
+- **Secrets:** `k8s/apps/batch-autopsy/secrets.sops.yaml`, consumed by ksops, holds
+  `batch-autopsy-db` (fresh random password and matching DATABASE_URL) and `ghcr-batch-autopsy`
+  (a namespaced copy of the approved cluster-managed GHCR credential).
+  Neither token permissions nor GitHub account settings change. Rotate the namespaced copy when
+  the source credential rotates. No Groq key or fake key is present; AI calls remain unavailable
+  until an owner-approved key is added to an encrypted Secret and referenced by the API.
+- **Resources:** one replica per workload, pinned to `vps`, `low-priority`, non-root,
+  read-only root filesystems, dropped capabilities, RuntimeDefault seccomp and no service-account
+  token mount. Requests total **225m CPU / 416 MiB RAM**; limits total **1100m CPU / 832 MiB RAM**.
+  Default rolling updates can temporarily add **125m / 288 MiB** requests and
+  **600m / 576 MiB** limits if both Deployments surge. PostgreSQL does not surge.
+  `/tmp`, PostgreSQL's runtime socket and shared-memory paths are bounded ephemeral mounts.
+- **Storage/cost:** one static 2 Gi Retain PV on the existing `/srv/data` filesystem, no new billed
+  volume/server/IP. See [storage.md](storage.md#batch-autopsy-dataset-declared-activation-pending)
+  for provisioning and backup limitations. No Groq billing change is authorized.
+
+### Activation sequence
+
+1. Finish private source-repository CI publication of both `:main` images and replace the temporary
+   app image tags in `k8s/apps/batch-autopsy/kustomization.yaml` with their actual manifest digests.
+   Verify the existing GHCR credential can read both private packages; do not make packages public.
+2. Provision only the new host directory through the existing Ansible `data_volume` role.
+   Confirm the mounted filesystem, ownership and free space before allowing reconciliation.
+3. Run the repository validation suite, including ksops rendering without disclosing decrypted
+   Secret values; commit these manifests, inventory and changelog together on the feature branch.
+   Open a PR and merge only after the protected-main checks pass.
+4. Root ArgoCD discovers the explicit Application after merge. The shared namespace baseline,
+   secrets, Services, policies and healthy Postgres reconcile before API/web (sync wave 1).
+   Confirm Synced/Healthy, bound PV/PVC and all three Ready pods using read-only kubectl.
+5. Use the loopback-only port-forward for the product smoke check. Image Updater tracks API/web
+   aliases independently and writes digest updates with `git:secret:argocd/git-creds-updater`.
+   A later Groq key addition requires a separate encrypted GitOps change; no key is required for
+   source ingestion, manual review and persisted investigations.
+
+Rollback is a reviewed GitOps revert. PV/PVC and Namespace are protected from automatic
+deletion/pruning, so reverting workload registration is not a data-erasure procedure.
+
 ## Contacts
 
 Roles are here because they are what the cluster's access model is built on; **names and addresses are held
