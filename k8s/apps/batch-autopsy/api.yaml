@@ -47,6 +47,11 @@ spec:
                 secretKeyRef:
                   name: batch-autopsy-db
                   key: DATABASE_URL
+            - name: GROQ_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: batch-autopsy-ai
+                  key: GROQ_API_KEY
             - name: GROQ_MODEL
               value: openai/gpt-oss-120b
             - name: GROQ_STRICT
