@@ -76,6 +76,11 @@ facts were checked on 2026-10-23 with `ssh` and `kubectl` read commands.
 - **Provider schema mode:** the deployment uses `GROQ_STRICT=false` after a real strict-mode
   `json_validate_failed` response. Pydantic validation, source quote verification and the existing
   bounded repair remain active. Model and application retry policy are unchanged.
+- **Application release:** image pins reference source `9f452e10e4ff66b92cd34b916edc9aecdb4d2f09`.
+  Its six CI jobs passed, including tests, formatters, secret scanning and private image publication.
+  Specific schema repair diagnostics retain the two-attempt limit.
+- **Quality boundary:** targeted real extraction and reassessment passed, but the complete three-case
+  model qualification remains unmet. Human review is mandatory. This is not validated causal analysis.
 - **Resources:** one replica per workload, pinned to `vps`, `low-priority`, non-root,
   read-only roots, dropped capabilities, RuntimeDefault seccomp and no service-account token mount.
   Requests total **225m CPU / 416 MiB RAM**. Limits total **1100m CPU / 832 MiB RAM**.

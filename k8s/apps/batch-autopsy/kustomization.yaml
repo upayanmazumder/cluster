@@ -15,6 +15,6 @@ generators:
   - secret-generator.yaml
 images:
   - name: ghcr.io/upayanmazumder/batch-autopsy-api
-    digest: sha256:3f98dd762938e619481331cd769d1309677fb31eb6c417fcbed3e7ebf4c2e3c3
+    digest: sha256:74b0f5f2d79159f9dada028fd995c8ead7f8deaf9fd5855dc7a4da4656aa1df3
   - name: ghcr.io/upayanmazumder/batch-autopsy-web
-    digest: sha256:179226c84df2a308b16bb5cb5736f7294f3e5a2e1d31bbdb76b699db459d1316
+    digest: sha256:af323934b7ad67e4072132c9c1a220062157d623681682d3a2b7ab8c1636933b
