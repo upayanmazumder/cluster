@@ -36,3 +36,7 @@ data_volume_tenant_dirs:
     owner: "10001"
     group: "10001"
     mode: "0750"
+  - path: /srv/data/batch-autopsy-postgres
+    owner: "70"
+    group: "70"
+    mode: "0700"

@@ -1,0 +1,131 @@
+# No web ingress allowance: access is an authenticated kubectl port-forward only.
+# Kubernetes node-originated probe/port-forward traffic is not blocked by NetworkPolicy.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: batch-autopsy
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: batch-autopsy
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [batch-autopsy-api, batch-autopsy-web]
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: web-to-api
+  namespace: batch-autopsy
+spec:
+  podSelector:
+    matchLabels:
+      app: batch-autopsy-web
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: batch-autopsy-api
+      ports:
+        - protocol: TCP
+          port: 8000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: api-from-web
+  namespace: batch-autopsy
+spec:
+  podSelector:
+    matchLabels:
+      app: batch-autopsy-api
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: batch-autopsy-web
+      ports:
+        - protocol: TCP
+          port: 8000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: api-to-postgres-and-groq
+  namespace: batch-autopsy
+spec:
+  podSelector:
+    matchLabels:
+      app: batch-autopsy-api
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: batch-autopsy-postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    # Standard NetworkPolicy cannot select Groq's changing DNS/CDN endpoints by FQDN.
+    # Restrict the provider path to public IPv4 TLS, excluding private/node/cluster ranges.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 0.0.0.0/8
+              - 10.0.0.0/8
+              - 100.64.0.0/10
+              - 127.0.0.0/8
+              - 169.254.0.0/16
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 224.0.0.0/4
+              - 240.0.0.0/4
+              - 138.201.157.147/32
+      ports:
+        - protocol: TCP
+          port: 443
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres-from-api
+  namespace: batch-autopsy
+spec:
+  podSelector:
+    matchLabels:
+      app: batch-autopsy-postgres
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: batch-autopsy-api
+      ports:
+        - protocol: TCP
+          port: 5432

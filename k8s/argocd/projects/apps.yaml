@@ -19,6 +19,8 @@ spec:
   # is not permitted in project apps") rather than deploying anywhere.
   destinations:
     - server: https://kubernetes.default.svc
+      namespace: batch-autopsy
+    - server: https://kubernetes.default.svc
       namespace: cas-api
     - server: https://kubernetes.default.svc
       namespace: dj-html-nodejs-web

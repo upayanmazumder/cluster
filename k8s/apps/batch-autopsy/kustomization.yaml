@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: batch-autopsy
+resources:
+  - api.yaml
+  - web.yaml
+  - postgres.yaml
+  - services.yaml
+  - networkpolicy.yaml
+components:
+  - ../../components/namespace-baseline
+generators:
+  - secret-generator.yaml
+images:
+  - name: ghcr.io/upayanmazumder/batch-autopsy-api
+    digest: sha256:3f98dd762938e619481331cd769d1309677fb31eb6c417fcbed3e7ebf4c2e3c3
+  - name: ghcr.io/upayanmazumder/batch-autopsy-web
+    digest: sha256:179226c84df2a308b16bb5cb5736f7294f3e5a2e1d31bbdb76b699db459d1316
