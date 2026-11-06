@@ -1,4 +1,4 @@
-# No web ingress allowance: access is an authenticated kubectl port-forward only.
+# Public ingress from Traefik is declared in networkpolicy-public.yaml.
 # Kubernetes node-originated probe/port-forward traffic is not blocked by NetworkPolicy.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
