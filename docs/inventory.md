@@ -70,8 +70,9 @@ facts were checked on 2026-10-23 with `ssh` and `kubectl` read commands.
 - **Secrets:** ksops consumes `k8s/apps/batch-autopsy/secrets.sops.yaml`.
   It holds `batch-autopsy-db` and `ghcr-batch-autopsy`. The latter copies the approved private
   registry credential without changing its permissions. Rotate the copy when its source rotates.
-  Groq configuration remains unavailable until the provider's human-verification step completes
-  and the new key receives encrypted storage and an API environment reference.
+  `batch-autopsy-ai` holds the dedicated Groq key, referenced only by the API environment.
+  The key expires on 6 December 2026. Renew it through the provider and encrypted GitOps workflow.
+  The local development copy is ignored by Git and restricted to mode `0600`.
 - **Resources:** one replica per workload, pinned to `vps`, `low-priority`, non-root,
   read-only roots, dropped capabilities, RuntimeDefault seccomp and no service-account token mount.
   Requests total **225m CPU / 416 MiB RAM**. Limits total **1100m CPU / 832 MiB RAM**.
@@ -83,7 +84,8 @@ facts were checked on 2026-10-23 with `ssh` and `kubectl` read commands.
 - **Verified private baseline:** deployment PR #88 merged after all seven required checks.
   ArgoCD reported Synced/Healthy. Separate rollout waits confirmed all three workloads ready.
   The retained claim bound. Browser checks confirmed creation, saved-title reload and text ingestion.
-  Public endpoint verification follows the ingress rollout.
+  Public PR #90 then passed all seven checks and merged as `8309a65`.
+  Both public hosts responded over HTTPS. Thorium loaded the workbench without a login gate.
 
 Changes require protected pull requests. ArgoCD applies Kubernetes state.
 Rollback uses a reviewed GitOps revert. Retained data is not erased automatically.
