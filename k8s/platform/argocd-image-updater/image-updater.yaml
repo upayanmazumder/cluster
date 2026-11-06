@@ -50,3 +50,6 @@ spec:
     # gitorgasm: digest of `latest`, `argocd` write-back (annotations on its Application).
     - namePattern: gitorgasm
       useAnnotations: true
+    # batch-autopsy: digest of `main` for api and web, `argocd` write-back (annotations on its Application).
+    - namePattern: batch-autopsy
+      useAnnotations: true
