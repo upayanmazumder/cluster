@@ -1,4 +1,4 @@
 kustomize:
   images:
-  - ghcr.io/upayanmazumder/batch-autopsy-api=ghcr.io/upayanmazumder/batch-autopsy-api:main@sha256:45c9a70b7520c103a9968c91982117acbca94b9611bd4fa932c0a803c0811cc0
-  - ghcr.io/upayanmazumder/batch-autopsy-web=ghcr.io/upayanmazumder/batch-autopsy-web:main@sha256:8e7ddafadd1eb25a494bdb4feb0a6ec4eeb33f7d2accaecb08827f638551bcfc
+  - ghcr.io/upayanmazumder/batch-autopsy-api=ghcr.io/upayanmazumder/batch-autopsy-api:main@sha256:a1162550e3ad8486830bc6f51ae16948825a0abba2e4201743e3e03615c2ecd4
+  - ghcr.io/upayanmazumder/batch-autopsy-web=ghcr.io/upayanmazumder/batch-autopsy-web:main@sha256:4b6cd268f36edb83a80c072a21e313bd15e67ff2024eff8c332b8380616fd248
