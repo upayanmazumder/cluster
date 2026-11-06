@@ -55,7 +55,7 @@ spec:
             - name: GROQ_MODEL
               value: openai/gpt-oss-120b
             - name: GROQ_STRICT
-              value: "true"
+              value: "false"
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
