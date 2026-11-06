@@ -1,0 +1,4 @@
+kustomize:
+  images:
+  - ghcr.io/upayanmazumder/batch-autopsy-api=ghcr.io/upayanmazumder/batch-autopsy-api:main@sha256:34041d3515d26f608644fa3df3d70b518c28d1efff79ca0296f21ad94df60f17
+  - ghcr.io/upayanmazumder/batch-autopsy-web=ghcr.io/upayanmazumder/batch-autopsy-web:main@sha256:d25a0a53ca81a31f9c8e509efdfb59ad283bc4d4f171c51e0474dd8939089835
