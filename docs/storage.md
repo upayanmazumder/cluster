@@ -78,7 +78,7 @@ Measured 2026-10-23:
   PVs use `Retain` and pin to node `vps`.
 - The monitoring PVs use the `hostpath-retain` class and point under `/var/lib/k8s-monitoring`.
 
-### Batch Autopsy dataset (declared, activation pending)
+### Batch Autopsy dataset
 
 `k8s/apps/batch-autopsy/postgres.yaml` declares a dedicated static `Retain` PV
 `batch-autopsy-postgres-vps` and PVC `batch-autopsy/postgres-data`, explicitly bound with
@@ -87,8 +87,8 @@ it does not allocate a new cloud volume or reuse any retained dataset. The 2 Gi 
 metadata, **not** a hostPath filesystem quota or an additional reservation on the shared 20 GB disk.
 PV and PVC both carry `Delete=false,Prune=false`.
 
-Before GitOps activation, provision the new directory through the Ansible `data_volume` role with
-owner/group `70:70`, mode `0700`, and verify that `/srv/data` is mounted and has free space.
+The scoped Ansible role provisioned the directory with owner/group `70:70` and mode `0700`.
+Live rollout verification confirmed the 2 Gi claim bound to the declared retained volume.
 `hostPath.type: Directory` intentionally refuses to create an unprovisioned path on the root disk.
 PostgreSQL 18 stores its data in the mounted tree's `18/docker/` subdirectory; it runs as UID 70,
 with no root init container. `fsGroup` does not fix hostPath ownership.

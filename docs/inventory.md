@@ -49,60 +49,44 @@ facts were checked on 2026-10-23 with `ssh` and `kubectl` read commands.
 | Out of scope | `codechefvit.com` zone (someone else's) |
 | Target-managed by | Terraform, only if the import plan is zero-diff (S2) |
 
-## Batch Autopsy private application (prepared, not yet activated)
+## Batch Autopsy application
 
 - **GitOps registration:** explicit Application
   `k8s/argocd/applications/apps/batch-autopsy.yaml`, project `apps`, namespace `batch-autopsy`.
   This is a two-image workload, not an ApplicationSet member.
+- **Public routes:** `https://batch-autopsy.upayan.dev` serves the web application.
+  `https://api-batch-autopsy.upayan.dev/docs` serves the API documentation.
+  The web application also proxies same-origin `/api` requests to the API Service.
+  Existing Cloudflare DNS resolves both hosts. Traefik uses the wildcard Origin CA certificate.
+- **Access decision:** the owner explicitly requested open access without Cloudflare Access.
+  No login, identity policy or authenticated signature is added. Visitors can inspect and modify
+  shared records and invoke any configured AI provider. Use fictional data only.
 - **Workloads:** API on `api:8000`, web on `web:8080`, PostgreSQL 18.6 on `postgres:5432`.
-  All Services are ClusterIP, with a headless database Service; no Ingress, NodePort, LoadBalancer,
-  public DNS, public TLS route, or new authentication feature is introduced.
-- **Access:** an authorized cluster operator can run
-  `kubectl -n batch-autopsy port-forward --address 127.0.0.1 svc/web 8080:8080`
-  and open `http://127.0.0.1:8080`. The web server proxies `/api` internally.
-  The application has no authentication and must not be exposed publicly without separate approval.
-- **Network boundary:** default-deny ingress and egress; only web-to-API TCP/8000,
-  API-to-Postgres TCP/5432, and API/web DNS to labelled CoreDNS pods are permitted.
-  The API additionally permits public IPv4 TCP/443 for Groq. Standard Kubernetes NetworkPolicy
-  cannot express a Groq FQDN allowlist: this rule excludes private, loopback, link-local, tailnet,
-  multicast/reserved and node ranges, but it is **not** a Groq-only hostname restriction.
-  An FQDN-aware egress proxy/CNI would be a separate infrastructure change.
-- **Secrets:** `k8s/apps/batch-autopsy/secrets.sops.yaml`, consumed by ksops, holds
-  `batch-autopsy-db` (fresh random password and matching DATABASE_URL) and `ghcr-batch-autopsy`
-  (a namespaced copy of the approved cluster-managed GHCR credential).
-  Neither token permissions nor GitHub account settings change. Rotate the namespaced copy when
-  the source credential rotates. No Groq key or fake key is present; AI calls remain unavailable
-  until an owner-approved key is added to an encrypted Secret and referenced by the API.
+  All Services remain ClusterIP. The database stays private.
+- **Network boundary:** default-deny ingress and egress remain active.
+  Public ingress policies permit only labelled Traefik pods in `kube-system` to reach web TCP/8080
+  and API TCP/8000. Existing web-to-API, API-to-Postgres and CoreDNS allowances remain unchanged.
+  The API permits public IPv4 TCP/443 for Groq. Standard NetworkPolicy cannot enforce Groq's FQDN.
+- **Secrets:** ksops consumes `k8s/apps/batch-autopsy/secrets.sops.yaml`.
+  It holds `batch-autopsy-db` and `ghcr-batch-autopsy`. The latter copies the approved private
+  registry credential without changing its permissions. Rotate the copy when its source rotates.
+  Groq configuration remains unavailable until the provider's human-verification step completes
+  and the new key receives encrypted storage and an API environment reference.
 - **Resources:** one replica per workload, pinned to `vps`, `low-priority`, non-root,
-  read-only root filesystems, dropped capabilities, RuntimeDefault seccomp and no service-account
-  token mount. Requests total **225m CPU / 416 MiB RAM**; limits total **1100m CPU / 832 MiB RAM**.
-  Default rolling updates can temporarily add **125m / 288 MiB** requests and
-  **600m / 576 MiB** limits if both Deployments surge. PostgreSQL does not surge.
-  `/tmp`, PostgreSQL's runtime socket and shared-memory paths are bounded ephemeral mounts.
-- **Storage/cost:** one static 2 Gi Retain PV on the existing `/srv/data` filesystem, no new billed
-  volume/server/IP. See [storage.md](storage.md#batch-autopsy-dataset-declared-activation-pending)
-  for provisioning and backup limitations. No Groq billing change is authorized.
+  read-only roots, dropped capabilities, RuntimeDefault seccomp and no service-account token mount.
+  Requests total **225m CPU / 416 MiB RAM**. Limits total **1100m CPU / 832 MiB RAM**.
+  Concurrent API/web rolling surges can add **125m / 288 MiB** requests and **600m / 576 MiB** limits.
+- **Storage/cost:** the retained 2 Gi claim uses `/srv/data/batch-autopsy-postgres` on the existing
+  volume. Ansible provisioned mode `0700` and owner/group `70:70`.
+  No new server, volume or IP is required. Backup integration remains absent.
+  See [storage.md](storage.md#batch-autopsy-dataset).
+- **Verified private baseline:** deployment PR #88 merged after all seven required checks.
+  ArgoCD reported Synced/Healthy. Separate rollout waits confirmed all three workloads ready.
+  The retained claim bound. Browser checks confirmed creation, saved-title reload and text ingestion.
+  Public endpoint verification follows the ingress rollout.
 
-### Activation sequence
-
-1. Finish private source-repository CI publication of both `:main` images and replace the temporary
-   app image tags in `k8s/apps/batch-autopsy/kustomization.yaml` with their actual manifest digests.
-   Verify the existing GHCR credential can read both private packages; do not make packages public.
-2. Provision only the new host directory through the existing Ansible `data_volume` role.
-   Confirm the mounted filesystem, ownership and free space before allowing reconciliation.
-3. Run the repository validation suite, including ksops rendering without disclosing decrypted
-   Secret values; commit these manifests, inventory and changelog together on the feature branch.
-   Open a PR and merge only after the protected-main checks pass.
-4. Root ArgoCD discovers the explicit Application after merge. The shared namespace baseline,
-   secrets, Services, policies and healthy Postgres reconcile before API/web (sync wave 1).
-   Confirm Synced/Healthy, bound PV/PVC and all three Ready pods using read-only kubectl.
-5. Use the loopback-only port-forward for the product smoke check. Image Updater tracks API/web
-   aliases independently and writes digest updates with `git:secret:argocd/git-creds-updater`.
-   A later Groq key addition requires a separate encrypted GitOps change; no key is required for
-   source ingestion, manual review and persisted investigations.
-
-Rollback is a reviewed GitOps revert. PV/PVC and Namespace are protected from automatic
-deletion/pruning, so reverting workload registration is not a data-erasure procedure.
+Changes require protected pull requests. ArgoCD applies Kubernetes state.
+Rollback uses a reviewed GitOps revert. Retained data is not erased automatically.
 
 ## Contacts
 
