@@ -29,7 +29,7 @@ removed 2026-09-28, so it is no longer among them):
 
 **Images — done, Blocker 1 resolved.**
 
-- Tracked by digest via `argocd-image-updater`: `meghmitra`, `mochi`, `adhigrahan-radar`,
+- Tracked by digest via `argocd-image-updater`: `meghmitra`, `mochi`, `adhigrahan-radar`, `batch-autopsy`,
   `status-page`, and the vcap v1 apps. Retired apps are no longer tracked.
 - **Blocker 1 (resolved 2026-09-28): the updater is running again.** It had been failing every cycle
   with `Could not get tags from registry: … denied` because its `registries.conf` pointed at
