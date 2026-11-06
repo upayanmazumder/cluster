@@ -73,6 +73,9 @@ facts were checked on 2026-10-23 with `ssh` and `kubectl` read commands.
   `batch-autopsy-ai` holds the dedicated Groq key, referenced only by the API environment.
   The key expires on 6 December 2026. Renew it through the provider and encrypted GitOps workflow.
   The local development copy is ignored by Git and restricted to mode `0600`.
+- **Provider schema mode:** the deployment uses `GROQ_STRICT=false` after a real strict-mode
+  `json_validate_failed` response. Pydantic validation, source quote verification and the existing
+  bounded repair remain active. Model and application retry policy are unchanged.
 - **Resources:** one replica per workload, pinned to `vps`, `low-priority`, non-root,
   read-only roots, dropped capabilities, RuntimeDefault seccomp and no service-account token mount.
   Requests total **225m CPU / 416 MiB RAM**. Limits total **1100m CPU / 832 MiB RAM**.
