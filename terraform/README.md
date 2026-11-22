@@ -9,7 +9,14 @@ server, primary IPs, SSH keys, data volume, firewall and attachment, both R2 buc
 Access applications and policies, and the zone settings override. The 2026-10-23 apply removed
 inbound TCP `15432`, TCP `15433`, TCP `7881`, and UDP `7882` from `hcloud_firewall.vps`. The plan was
 `0 to add, 1 to change, 0 to destroy`. A rule-by-rule diff confirmed that only those four rules left
-the ruleset. A later apply on 2026-10-27 removed inbound TCP `15434` (vcap v1 Postgres). The firewall now allows only TCP 22, 80, 443 (Cloudflare ranges), TCP 6443, UDP 41641, and ICMP. No database port is open. See the changelog for the full apply history.
+the ruleset. A later apply on 2026-10-27 removed inbound TCP `15434` (vcap v1 Postgres). At that stage, the firewall allowed TCP 22, 80, 443 (Cloudflare ranges), TCP 6443, UDP 41641, and ICMP. No database port was open. See the changelog for the apply history.
+
+On 2026-11-22, a targeted apply removed public TCP 22 and 6443 from firewall `11692068`.
+Only Cloudflare TCP 80/443, UDP 41641, and ICMP remain public. Outbound traffic remains unrestricted.
+Private OpenSSH and Kubernetes API checks passed.
+The Cloudflare source list refreshed from 68 to 69 ranges.
+The targeted plan excluded unrelated primary IP name drift.
+See [`../docs/networking.md`](../docs/networking.md) for verification limits and recovery.
 
 State lives in the `vps-tfstate` R2 bucket (`s3://vps-tfstate/vps/terraform.tfstate`) since
 2026-09-29 (TF-001). `backend.tf` holds the live S3 backend. R2 has no bucket versioning, so the only

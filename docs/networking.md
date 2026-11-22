@@ -12,9 +12,9 @@ The repository declares these rules:
 
 | Rule | Source | Note |
 |---|---|---|
-| tcp/22 | `0.0.0.0/0`, `::/0` | Root SSH, key-only. Target is Tailscale-only |
+| tcp/22 | Tailscale only | Public IPv4 and IPv6 rules removed |
 | tcp/80, tcp/443 | Cloudflare published ranges | Built from `data.cloudflare_ip_ranges` |
-| tcp/6443 | `0.0.0.0/0`, `::/0` | k3s API server. Target is Tailscale-only |
+| tcp/6443 | Tailscale only | Public IPv4 and IPv6 rules removed |
 | udp/41641 | `0.0.0.0/0`, `::/0` | Tailscale NAT traversal |
 | icmp | `0.0.0.0/0`, `::/0` | Answered |
 
@@ -37,6 +37,30 @@ Closed by the absence of rules:
 - Traefik NodePorts
 
 Some of these ports are still bound on the host. The firewall makes them unreachable.
+
+On 2026-11-22, Terraform removed the public SSH and Kubernetes API rules from firewall `11692068`.
+The workstation uses `100.96.250.81` for both `ssh vps` and its Kubernetes API endpoint.
+OpenSSH still requires the existing SSH key. Tailscale SSH remains disabled.
+No exit node, subnet route, host firewall, or Kubernetes forwarding rule changed.
+The provider refreshed the Cloudflare source list from 68 to 69 ranges without removing existing ranges.
+
+The tailnet contains PC `sonder`, phone `Solace`, VPS `vps`, and four offline devices.
+Peer visibility does not prove a restricted tailnet policy.
+The admin console required login during this change, so ACLs, device approval, and account MFA remain unverified.
+The VPS node key expires on 2027-01-08.
+Renew it before expiry to preserve private administration.
+
+Recovery does not require public SSH to remain open.
+Use the Hetzner console or rescue system if Tailscale fails.
+Alternatively, review a targeted Terraform plan with `-var='emergency_ssh_cidr=YOUR_PUBLIC_IP/32'`.
+Apply that plan with `scripts/tf.sh`, then remove the override immediately after recovery.
+Retain SSH key authentication throughout recovery.
+
+Verification confirmed private SSH, API readiness, a Ready node, and VPS outbound HTTPS.
+Public IPv4 probes timed out on TCP 22, 6443, 2379, 2380, and 10250.
+The workstation lacked IPv6 connectivity. Provider rules confirm no IPv6 SSH or API allow rule.
+Public application checks retained their existing HTTP 410 responses or certificate errors.
+These errors preceded the firewall change. They do not prove healthy public applications.
 
 ## vcap Postgres exposure (retired)
 
