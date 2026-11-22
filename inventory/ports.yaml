@@ -37,9 +37,9 @@
   namespace: null
   owner: upayan
   scope: public
-  status: remove
-  reason: "key-only root SSH; target state moves admin access to Tailscale only (S3/S6)"
-  firewall_rule: "tcp 22 from 0.0.0.0/0 and ::/0 — **applied**. The parenthetical here used to read 'no Hetzner Cloud Firewall exists yet', which stopped being true on 2026-09-28. The firewall exists and deliberately allows 22 from anywhere; `status: remove` is still correct because closing it is N5, gated on a proven tailnet path from every admin machine."
+  status: closed
+  reason: "SSH uses Tailscale and the existing SSH key"
+  firewall_rule: "none: public IPv4 and IPv6 SSH blocked by the Hetzner firewall"
   ingress: direct
   auth: ssh key (root only)
   temporary: false
@@ -52,11 +52,11 @@
   namespace: null
   owner: upayan
   scope: tailnet
-  status: target
-  reason: "S6 target: SSH reachable only via tailnet (100.96.250.81), public 22 closed by the Hetzner firewall"
+  status: live
+  reason: "SSH over Tailscale at 100.96.250.81 with the existing SSH key"
   firewall_rule: "vps firewall: no public rule for 22 (tailnet reaches the host directly over the tailscale0 interface)"
   ingress: direct
-  auth: ssh key (admin_user, then root disabled)
+  auth: ssh key (root key-only login remains enabled)
   temporary: false
   expires: null
 
@@ -275,9 +275,9 @@
   namespace: null
   owner: platform
   scope: public
-  status: remove
-  reason: "hostNetwork k3s apiserver; must only be reachable from tailnet devices per admin-plane decision"
-  firewall_rule: "tcp 6443 from 0.0.0.0/0 and ::/0. The S6 target removes this rule"
+  status: closed
+  reason: "Administrative access uses Tailscale"
+  firewall_rule: "none: public IPv4 and IPv6 API access blocked by the Hetzner firewall"
   ingress: direct (hostNetwork)
   auth: client certs / bearer tokens
   temporary: false
@@ -290,9 +290,9 @@
   namespace: null
   owner: platform
   scope: tailnet
-  status: target
-  reason: "admin plane is tailnet-only; kubectl/argocd CLI go over Tailscale or kubectl port-forward"
-  firewall_rule: "target (S6): no public rule for 6443"
+  status: live
+  reason: "The workstation kubeconfig uses https://100.96.250.81:6443"
+  firewall_rule: "none: Tailscale carries API traffic"
   ingress: direct (hostNetwork)
   auth: client certs / bearer tokens
   temporary: false

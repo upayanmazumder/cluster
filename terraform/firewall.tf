@@ -1,16 +1,13 @@
 # VPS firewall (live).
 #
-# Inbound: tcp/22, tcp/80, tcp/443, tcp/6443, udp/41641, and icmp.
-# tcp/80 and tcp/443 use Cloudflare's published ranges when `cloudflare_only_ingress`
-# is true. No database port is open.
+# Inbound: tcp/80 and tcp/443 from Cloudflare, udp/41641, and icmp.
+# SSH and the Kubernetes API use Tailscale only. No database port is open.
 #
 # TCP 15432/15433 (v2 Postgres), TCP 15434 (v1 Postgres), and LiveKit TCP 7881/UDP 7882 were
 # removed with the retired workloads (2026-10-23 and 2026-10-27). This file is the source of truth.
 # `inventory/ports.yaml` records the same ports, and `scripts/check-ports.py`
 # compares the two.
 #
-# The remaining S6 target is documented at the bottom of this file. It is not
-# applied.
 
 # N4 (P7): restrict 80/443 to Cloudflare's edge. Fetched, never hand-copied — a static list rots
 # silently, and a wrong range list here is a total ingress outage (Cloudflare can reach nothing, every
@@ -39,8 +36,7 @@ locals {
   # Gated, so that the applied firewall is provably the intended one: with the flag off this is
   # byte-identical to the `["0.0.0.0/0", "::/0"]` it replaces, and `terraform plan` reports no changes.
   #
-  # Only 80 and 443 are affected. 22 and 6443 are NOT narrowed here: that is N5, and it depends on a
-  # working tailnet (N2) rather than on Cloudflare.
+  # Administrative ports have no public rule. Tailscale carries that traffic over UDP 41641.
   http_https_source_ips = var.cloudflare_only_ingress ? concat(
     data.cloudflare_ip_ranges.cf.ipv4_cidr_blocks,
     data.cloudflare_ip_ranges.cf.ipv6_cidr_blocks,
@@ -57,12 +53,6 @@ resource "hcloud_firewall" "vps" {
   rule {
     direction  = "in"
     protocol   = "tcp"
-    port       = "22"
-    source_ips = ["0.0.0.0/0", "::/0"]
-  }
-  rule {
-    direction  = "in"
-    protocol   = "tcp"
     port       = "80"
     source_ips = local.http_https_source_ips
   }
@@ -71,12 +61,6 @@ resource "hcloud_firewall" "vps" {
     protocol   = "tcp"
     port       = "443"
     source_ips = local.http_https_source_ips
-  }
-  rule {
-    direction  = "in"
-    protocol   = "tcp"
-    port       = "6443"
-    source_ips = ["0.0.0.0/0", "::/0"]
   }
   rule {
     direction  = "in"
@@ -112,38 +96,3 @@ resource "hcloud_firewall_attachment" "vps" {
   server_ids = concat([hcloud_server.vps.id], hcloud_server.rebuild[*].id)
 }
 
-# S6 target (not yet applied — tracked here as the documented next step, do not act on this
-# comment without the S6 stage's own confirmation gate):
-#   - the tcp/15434 v1 Postgres rule was removed on 2026-10-27 with the vcap v1 retirement
-#   - restrict 80/443 source_ips to Cloudflare's published ranges
-#   - remove the plain tcp/22 and tcp/6443 rules entirely (Tailscale is the only admin path)
-#
-# Before you touch this, two things (both verified 2026-09-28):
-#
-#  1. PREREQUISITE: Tailscale must actually be working on every admin machine first. Removing the
-#     public 22/6443 rules is only safe if the tailnet path exists, and today it does not for at
-#     least one admin workstation (`tailscale` is not even installed there, and the kubeconfig
-#     points at `https://138.201.157.147:6443`, i.e. the public address). Locking 6443 first would
-#     cut `kubectl` for whoever is working from such a machine — ArgoCD itself is unaffected
-#     in-cluster. Keep SSH reachable until the tailnet path is proven from every admin machine.
-#     Also note the server is currently reachable on 6443 from the public internet (confirmed by
-#     probing the port from a workstation), which is exactly what this change is for.
-#
-#  2. CLOUDFLARE RANGES: fetch them, do not hand-maintain a static list. The public, no-auth
-#     endpoint works and is what the S6 executor should use:
-#       curl -s https://api.cloudflare.com/client/v4/ips | jq -r '.result.ipv4_cidrs[], .result.ipv6_cidrs[]'
-#     (15 IPv4 + 7 IPv6 ranges as of 2026-09-28). The comment that used to sit here suggested a
-#     provider data source. **Confirmed 2026-09-28 against the pinned provider** (`cloudflare ~> 4.0`,
-#     `terraform providers schema`): `data.cloudflare_ip_ranges` exists and is not deprecated, exposing
-#     `ipv4_cidr_blocks` and `ipv6_cidr_blocks` — so the data source is the better route and the API
-#     fetch above is the fallback, not the other way round.
-#
-#     **One decision that data source makes explicit and a hand-copied list hides:** it also exposes
-#     `china_ipv4_cidr_blocks` / `china_ipv6_cidr_blocks`. Cloudflare's China network reaches the origin
-#     from those ranges, so a rule built from the main lists alone silently drops that traffic. Either
-#     include them deliberately or record that China-network visitors are out of scope — do not discover
-#     it after the apply.
-#
-# Reminder of why this is deferred rather than done: the failure mode is a total ingress outage
-# (Cloudflare can reach nothing, every host 5xx) plus loss of kubectl, and it is reversible only
-# through the Hetzner Cloud console (which the owner holds) or from an already-open session.

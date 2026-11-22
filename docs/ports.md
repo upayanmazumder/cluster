@@ -21,10 +21,10 @@ Before you add a port, read [`runbooks/add-port.md`](runbooks/add-port.md).
 
 | Port | Proto | Service | Scope | Status | Notes |
 |---|---|---|---|---|---|
-| 22 | tcp | sshd | public | remove | Key-only root. The firewall allows it from `0.0.0.0/0`. Target is Tailscale-only |
+| 22 | tcp | sshd | public | closed | No public IPv4 or IPv6 rule. Existing SSH keys work through Tailscale |
 | 80 | tcp | Traefik web | public | live | Cloudflare-proxied. Repository firewall rule uses Cloudflare ranges |
 | 443 | tcp | Traefik websecure | public | live | Cloudflare-proxied. Repository firewall rule uses Cloudflare ranges |
-| 6443 | tcp | k3s API server | public | remove | Firewall allows it from `0.0.0.0/0`. Target is Tailscale-only |
+| 6443 | tcp | k3s API server | public | closed | No public IPv4 or IPv6 rule. Workstation uses the Tailscale address |
 | 15434 | tcp | vcap v1 Postgres | public | removed | vcap v1 retired 2026-10-27. Traefik entrypoint, route, and firewall rule removed. Port closed |
 | 41641 | udp | tailscaled | public | live | Required for NAT traversal |
 | 5432 | tcp | vcap v2 legacy Postgres | public | removed | NodePort duplicates deleted 2026-09-29. v2 workloads retired 2026-10-23. No route and no listener |
@@ -50,9 +50,9 @@ and `53`.
 
 The repository firewall rule for TCP `80` and `443` uses Cloudflare ranges.
 Confirm the live firewall before you treat that as enforcement.
-The target architecture below is not fully applied.
+The administrative cutover applied on 2026-11-22.
 
-## Target state
+## Administrative access
 
 | Port | Proto | Service | Scope | Notes |
 |---|---|---|---|---|
