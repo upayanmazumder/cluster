@@ -45,8 +45,33 @@ No exit node, subnet route, host firewall, or Kubernetes forwarding rule changed
 The provider refreshed the Cloudflare source list from 68 to 69 ranges without removing existing ranges.
 
 The tailnet contains PC `sonder`, phone `Solace`, VPS `vps`, and four offline devices.
-Peer visibility does not prove a restricted tailnet policy.
-The admin console required login during this change, so ACLs, device approval, and account MFA remain unverified.
+The approved policy is stored in [`../ansible/files/tailscale-policy.hujson`](../ansible/files/tailscale-policy.hujson).
+Apply this file through the Tailscale console JSON editor. Ansible does not upload it.
+The console validates 15 tests before saving.
+
+| Source | VPS access |
+|---|---|
+| PC `sonder` | TCP 22 and 6443 |
+| Phone `Solace` | TCP 22 |
+| Other devices | Denied |
+
+The VPS cannot initiate connections to other tailnet devices.
+Response traffic for permitted administrative connections remains allowed.
+Other tailnet devices retain their existing connectivity, including subnet `10.42.1.0/24`.
+New subnet routes require a separate policy review.
+Device rules include both IPv4 and IPv6 addresses.
+Replacing an administrative device requires updating the policy.
+Normal internet traffic does not traverse these grants.
+The separate Tailscale SSH policy remains unchanged. The VPS uses OpenSSH with its existing keys.
+
+Manual approval for new devices is enabled and survived a console reload.
+Existing devices remain enrolled. Tailnet Lock remains disabled.
+Google account MFA remains unverified.
+Live checks confirmed PC private SSH, API readiness, and IPv6 administrative TCP access.
+PC access to VPS kubelet timed out. VPS access to PC SSH timed out.
+Phone SSH permission passed policy validation, but phone key authentication was not tested.
+The original policy backup remains private under the workstation's `.local/state/` directory.
+Restore that policy through the console if a tailnet policy recovery is necessary.
 The VPS node key expires on 2027-01-08.
 Renew it before expiry to preserve private administration.
 
